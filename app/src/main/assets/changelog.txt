@@ -2,6 +2,13 @@
 # the app shows it once after updating, Settings lists it under "Update" before downloading, and CI puts it in the
 # release notes. One "- " line per change, written for the people using the app.
 
+## 0.9.2
+- Expiry reminders: a quiet notification about 6 months and a month before a passport, visa, licence or insurance runs out, and an "Expiring soon" list on Home
+- Trips warn you when someone going has a passport that expires less than 6 months after the trip
+- Home shows whether you're synced: "Up to date · just now", "Sharing…", or what needs fixing
+- Two people editing an event's notes at the same time no longer lose each other's changes; events show who changed them last
+- Invite someone next to you with a QR code (Group settings › Show invite as a QR code)
+
 ## 0.9.1
 - Much faster group syncing: your changes go out within a second, and while Lararium is open the others' changes show up within seconds
 - Lighter syncs: a member's share is only downloaded when something in it changed, and only new files are uploaded (several at once)

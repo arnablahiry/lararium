@@ -37,6 +37,11 @@ jobs:
           CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: |
           if [ -n "$CLIENT_ID" ]; then sed -i "s/REPLACE_ME.apps.googleusercontent.com/$CLIENT_ID/" app/src/main/res/values/strings.xml; fi
+      - name: Cache Robolectric's Android jars (the database upgrade test)
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
       - name: Test and build
         run: |
           VC="${{ github.event.inputs.versionCode }}"; VN="${{ github.event.inputs.versionName }}"
@@ -48,6 +53,12 @@ jobs:
           grep -E -A4 '^e: |What went wrong|FAILED|error:' build.log | head -150 > errs.txt || true
           [ -s errs.txt ] || tail -60 build.log > errs.txt
           echo "::error title=Build errors::$(sed 's/%/%25/g; s/\r//g' errs.txt | awk '{printf "%s%%0A", $0}')"
+      - name: Keep the database schema (app/schemas) in the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/schemas 2>/dev/null || true
+          git diff --cached --quiet || { git commit -q -m "Database schema $(grep '^familydocs.versionName' gradle.properties | cut -d= -f2)"; git pull --rebase -q && git push -q || echo "couldn't push the schema (it's added next time)"; }
       - name: Name the APK
         run: |
           VN="${{ github.event.inputs.versionName }}"

@@ -48,6 +48,9 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    // the exported schemas, for the database upgrade test (unit tests only: nothing extra in the app)
+    sourceSets { getByName("test").assets.srcDir("$projectDir/schemas") }
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 // Room's Gradle plugin keeps one schema copy per build variant, so debug and release KSP runs can't clash over the same file.
@@ -91,5 +94,12 @@ dependencies {
 
     implementation(libs.androidx.biometric)
 
+    // QR codes for invites (encoding only)
+    implementation(libs.zxing.core)
+
     testImplementation(libs.junit)
+    // database upgrades checked against every past version's schema (app/schemas), on the JVM
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.room.testing)
 }

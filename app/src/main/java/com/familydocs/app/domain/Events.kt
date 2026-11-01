@@ -30,6 +30,8 @@ object Events {
     fun reminderLabel(days: Int) = REMINDERS.firstOrNull { it.first == days }?.second ?: "$days days before"
 
     private val TRAVEL = setOf("trip", "mountain", "beach", "heritage", "desert", "jungle")
+    /** A trip (rather than a birthday or an appointment): passports are checked against it. */
+    fun isTravel(art: String) = art in TRAVEL
 
     /** Which vault documents of the people going are worth pinning to this kind of event. */
     fun suggestionPattern(art: String): Regex? = when {

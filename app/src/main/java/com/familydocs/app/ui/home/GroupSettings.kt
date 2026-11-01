@@ -61,21 +61,30 @@ import kotlinx.coroutines.launch
 fun rememberInviteSender(onBusy: (Boolean) -> Unit = {}): (String) -> Unit {
     val app = LocalContainer.current
     val context = LocalContext.current
+    return rememberInvite(onBusy) { inv ->
+        app.appLock.expectExternalActivity()
+        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, inv.message()), "Send the invite"))
+    }
+}
+
+/** Prepares your invite for a group (Drive access the first time), then hands it to [onReady] (send it, show it as a QR code…). */
+@Composable
+fun rememberInvite(onBusy: (Boolean) -> Unit = {}, onReady: (GroupInvite) -> Unit): (String) -> Unit {
+    val app = LocalContainer.current
     val toast = LocalToast.current
     val scope = rememberCoroutineScope()
+    val ready by androidx.compose.runtime.rememberUpdatedState(onReady)
+    val busy by androidx.compose.runtime.rememberUpdatedState(onBusy)
     var target by remember { mutableStateOf<String?>(null) }
     val connect = rememberGoogleConnect { r ->
         val g = target ?: return@rememberGoogleConnect
         r.onSuccess { s ->
             scope.launch {
-                onBusy(true)
+                busy(true)
                 runCatching { app.share.invite(s.token, g) }
-                    .onSuccess { inv ->
-                        app.appLock.expectExternalActivity()
-                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, inv.message()), "Send the invite"))
-                    }
+                    .onSuccess { inv -> ready(inv) }
                     .onFailure { toast.show("Couldn't prepare the invite: ${it.message}") }
-                onBusy(false)
+                busy(false)
             }
         }.onFailure { if (it !is GoogleAccountHelper.Cancelled) toast.show(GoogleAccountHelper.explain(it)) }
     }
@@ -106,6 +115,8 @@ fun GroupSettingsSheet(groupId: String, intro: String? = null, joinedFrom: Strin
     var croppingFor by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var cropStart by remember { mutableStateOf<com.familydocs.app.data.PhotoSources.Source?>(null) }
     val sendInvite = rememberInviteSender { busy = if (it) "Preparing the invite…" else null }
+    var qr by remember { mutableStateOf<GroupInvite?>(null) }
+    val showQr = rememberInvite({ busy = if (it) "Preparing the invite…" else null }) { qr = it }
     // Just joined: your own invite goes back to whoever invited you (the share sheet opens by itself, once).
     if (intro == "joined") androidx.compose.runtime.LaunchedEffect(g.id) { kotlinx.coroutines.delay(700); sendInvite(g.id) }
     val sync = rememberGoogleConnect { r ->
@@ -233,6 +244,8 @@ fun GroupSettingsSheet(groupId: String, intro: String? = null, joinedFrom: Strin
             Spacer(Modifier.height(12.dp))
             FdButton("Invite someone", { sendInvite(g.id) }, icon = "people", enabled = busy == null)
             Spacer(Modifier.height(10.dp))
+            FdButton("Show invite as a QR code", { showQr(g.id) }, kind = BtnKind.Ghost, icon = "scan", enabled = busy == null)
+            Spacer(Modifier.height(10.dp))
             if (peers.isNotEmpty() || g.shareIndex != null) FdButton("Sync now", sync, kind = BtnKind.Ghost, icon = "refresh", enabled = busy == null)
             busy?.let { Text(it, style = fdText(12.5f, color = c.muted), modifier = Modifier.padding(top = 10.dp)) }
             Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -244,6 +257,7 @@ fun GroupSettingsSheet(groupId: String, intro: String? = null, joinedFrom: Strin
             Spacer(Modifier.height(8.dp))
         }
     }
+    qr?.let { inv -> InviteQrSheet(inv, g.name) { qr = null } }
     croppingFor?.let { bmp -> PhotoCropSheet(bmp, "Group picture", start = cropStart, onDone = { p ->
         scope.launch { app.repo.setGroupPicture(g.id, null, p.bytes); p.keep(app) }; croppingFor = null }, onDismiss = { croppingFor = null }) }
     managing?.let { key ->

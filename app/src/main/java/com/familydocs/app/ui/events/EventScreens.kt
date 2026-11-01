@@ -183,6 +183,21 @@ fun EventScreen(eventId: String, onBack: () -> Unit, onEdit: () -> Unit, onDocum
                     Text(if (e.visibleIds.isEmpty()) "Visible to everyone in the group" else if (others.isEmpty()) "Only you can see this" else "Visible to you, ${others.joinToString(", ")}", style = fdText(11.5f, color = c.muted))
                 }
                 if (organiser != null) Text("Organised by $organiser", style = fdText(11.5f, color = c.muted), modifier = Modifier.padding(top = 2.dp))
+                // who changed it last (shared events: anyone it's shared with can)
+                if (e.updatedAt > 0 && (organiser != null || others.isNotEmpty() || e.visibleIds.isEmpty())) {
+                    val who = e.editedBy?.let { k -> members.firstOrNull { it.origin == k && !it.shared }?.name ?: "someone" } ?: "you"
+                    Text("Changed by $who · " + android.text.format.DateUtils.getRelativeTimeSpanString(e.updatedAt, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS),
+                        style = fdText(11.5f, color = c.muted), modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+            // A passport of someone going that runs out during the trip or within 6 months after it
+            val tripEnd = Events.parse(e.endDay) ?: Events.parse(e.startDay)
+            if (tripEnd != null && Events.isTravel(e.art) && !tripEnd.isBefore(java.time.LocalDate.now())) people.forEach { p ->
+                val passport = allDocs.filter { it.memberId == p.id && it.eventId == null && com.familydocs.app.domain.Expiry.isPassport(it.name) }
+                    .mapNotNull { d -> com.familydocs.app.events.ExpiryReminders.expiryOf(d)?.let { d to it } }.maxByOrNull { it.second } ?: return@forEach
+                val problem = com.familydocs.app.domain.Expiry.tripProblem(passport.second, tripEnd) ?: return@forEach
+                FdBanner("passport", "${if (p.isSelf) "Your" else p.name + "'s"} passport $problem (${com.familydocs.app.domain.Expiry.format(passport.second)}). " +
+                    "Many countries refuse entry with less than 6 months left.", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp).clickable { onDocument(passport.first.id) })
             }
             FdList(Modifier.padding(top = 16.dp)) {
                 FdListItem("Reminder", Events.reminderLabel(e.remindDays) + if (e.remindDays >= 0) " · a notification on this phone" else "", first = true, icon = "bell", onClick = onEdit)

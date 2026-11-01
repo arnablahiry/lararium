@@ -1,0 +1,72 @@
+# One-off (and re-runnable from the Actions tab): rebuilds the database schema of every past version from the commit
+# that had it, and commits them to app/schemas, so the upgrade test can check every version a phone might still have.
+# From now on each build commits the current version's schema by itself (see build-apk.yml).
+name: Room schemas
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/room-schemas.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { v: 1, commits: "eff94d7 056f606" }
+          - { v: 2, commits: "0e960db fcf1f3a" }
+          - { v: 3, commits: "5288ae9 228d074 cdc742b 31af514" }
+          - { v: 4, commits: "1901394" }
+          - { v: 5, commits: "53b4fcc 64d5dcc" }
+          - { v: 6, commits: "5257811 2c33baa" }
+          - { v: 7, commits: "fce60ed 27dbd81 cd6d235" }
+          - { v: 8, commits: "485d9de ed8e5ff" }
+          - { v: 9, commits: "e1a9864 61db960" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Schema of version ${{ matrix.v }}
+        run: |
+          mkdir -p out
+          for c in ${{ matrix.commits }}; do
+            git checkout -f -q "$c" && git clean -fdq
+            chmod +x gradlew
+            # builds of that time may expect these; dummies are enough to generate the schema
+            [ -f keystore.properties ] || printf "storeFile=none.jks\nstorePassword=x\nkeyAlias=x\nkeyPassword=x\n" > keystore.properties
+            if grep -q "google-services" app/build.gradle.kts && [ ! -f app/google-services.json ]; then
+              printf '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"com.familydocs.app"}},"api_key":[{"current_key":"x"}]}],"configuration_version":"1"}' > app/google-services.json
+            fi
+            ./gradlew --no-daemon -q :app:kspDebugKotlin || true
+            f=$(find app -path '*com.familydocs.app.data.AppDatabase/${{ matrix.v }}.json' | head -1)
+            if [ -n "$f" ]; then cp "$f" out/${{ matrix.v }}.json; echo "version ${{ matrix.v }} from $c"; break; fi
+          done
+          test -f out/${{ matrix.v }}.json
+      - uses: actions/upload-artifact@v4
+        with: { name: "schema-${{ matrix.v }}", path: out/*.json }
+
+  commit:
+    needs: schema
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { pattern: "schema-*", path: got, merge-multiple: true }
+      - name: Commit the schemas
+        run: |
+          d=app/schemas/com.familydocs.app.data.AppDatabase
+          mkdir -p $d
+          for f in got/*.json; do [ -f "$d/$(basename $f)" ] || cp "$f" "$d/"; done
+          ls $d
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/schemas
+          git diff --cached --quiet || { git commit -m "Database schemas of earlier versions (for the upgrade test)"; git pull --rebase -q; git push; }

@@ -45,13 +45,19 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         takeInvite(intent)
+        takeDocument(intent)
+    }
+
+    /** An expiry reminder was tapped: its document opens (after unlocking). */
+    private fun takeDocument(intent: android.content.Intent?) {
+        intent?.getStringExtra(com.familydocs.app.events.ExpiryReminders.OPEN_DOCUMENT)?.let { (application as FamilyDocsApp).container.openDocument.value = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = (application as FamilyDocsApp).container
-        if (savedInstanceState == null) takeInvite(intent)
+        if (savedInstanceState == null) { takeInvite(intent); takeDocument(intent) }
 
         // FLAG_SECURE: no screenshots, blank thumbnail in Recents.
         lifecycleScope.launch {

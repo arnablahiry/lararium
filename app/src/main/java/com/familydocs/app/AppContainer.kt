@@ -63,8 +63,21 @@ class AppContainer(context: Context) {
     /** Drive access, kept for a while so each change doesn't ask Google again. */
     private var driveToken: Pair<String, Long>? = null
 
+    /** What Home's sync line shows: sharing your changes, up to date (when), or what's wrong. */
+    data class SyncStatus(val sharing: Boolean = false, val sharedAt: Long = 0L, val checkedAt: Long = 0L,
+                          val problem: String? = null, val needsGoogle: Boolean = false, val offline: Boolean = false)
+    val syncStatus = kotlinx.coroutines.flow.MutableStateFlow(SyncStatus())
+
+    /** A document to open (from an expiry reminder), once the vault is showing. */
+    val openDocument = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
     /** Shares your changes now (a burst of changes, like typing notes, goes out as one). */
-    fun publishSoon() { publishRequests.tryEmit(Unit) }
+    fun publishSoon() { syncStatus.value = syncStatus.value.copy(sharing = true); publishRequests.tryEmit(Unit) }
+
+    /** After a look at the others' shares: when, or that Drive couldn't be reached. */
+    fun checked(reachable: Boolean) {
+        syncStatus.value = if (reachable) syncStatus.value.copy(checkedAt = System.currentTimeMillis(), offline = false) else syncStatus.value.copy(offline = true)
+    }
 
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     private fun startPublishing() = appScope.launch {
@@ -72,15 +85,20 @@ class AppContainer(context: Context) {
     }
 
     private suspend fun publishOnce() {
-        if (repo.groupsNow().none { it.shareIndex != null || it.peerList.isNotEmpty() }) return
+        if (repo.groupsNow().none { it.shareIndex != null || it.peerList.isNotEmpty() }) { syncStatus.value = syncStatus.value.copy(sharing = false); return }
         val ok = runCatching {
             val token = driveToken?.takeIf { System.currentTimeMillis() < it.second }?.first ?: run {
                 val auth = backup.authorize()
-                if (auth.hasResolution()) return // needs the user (Settings shows it); the background job couldn't either
+                if (auth.hasResolution()) { // needs the user (Settings); the background job couldn't either
+                    syncStatus.value = syncStatus.value.copy(sharing = false, problem = "Google Drive needs you · tap", needsGoogle = true)
+                    return
+                }
                 (auth.accessToken ?: error("No Drive access")).also { driveToken = it to System.currentTimeMillis() + 40 * 60_000L }
             }
             share.publishNow(token)
         }.isSuccess
+        syncStatus.value = if (ok) syncStatus.value.copy(sharing = false, sharedAt = System.currentTimeMillis(), problem = null, needsGoogle = false, offline = false)
+            else syncStatus.value.copy(sharing = false, problem = "Couldn't share your changes · tap to retry", needsGoogle = false)
         if (!ok) { driveToken = null; BackupWorker.shareNow(app) }
     }
 

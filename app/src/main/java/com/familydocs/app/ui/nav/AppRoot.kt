@@ -97,6 +97,9 @@ private fun VaultNav() {
     val toast = LocalToast.current
     val idArg = listOf(navArgument("id") { type = NavType.StringType })
     val box = cropBoxPx()
+    // from an expiry reminder
+    val openDoc by c.openDocument.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(openDoc) { openDoc?.let { c.openDocument.value = null; nav.navigate("doc/$it") } }
 
     NavHost(nav, startDestination = "home", enterTransition = { fdEnter() }, exitTransition = { fdExit() },
         popEnterTransition = { fdPopEnter() }, popExitTransition = { fdPopExit() }) {

@@ -14,6 +14,7 @@ import com.familydocs.app.data.Peer
 import com.familydocs.app.data.VaultDao
 import com.familydocs.app.domain.GroupCodes
 import com.familydocs.app.domain.GroupInvite
+import com.familydocs.app.domain.NotesMerge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -53,17 +54,21 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
      * Quick look at everyone's shares while the app is open: no Google sign-in needed (shares are public links), and a
      * share that hasn't changed costs one tiny request. Only changed ones are downloaded and read. Returns how much changed.
      */
-    suspend fun poll(): Int = running.withLock { withContext(Dispatchers.IO) {
-        val me = dao.selfNow() ?: return@withContext 0
-        var n = 0
+    suspend fun poll(): Polled = running.withLock { withContext(Dispatchers.IO) {
+        val me = dao.selfNow() ?: return@withContext Polled(0, true)
+        var n = 0; var tried = 0; var failed = 0
         dao.groupsNow().filter { it.peerList.isNotEmpty() }.forEach { g ->
             g.peerList.forEach { p ->
                 if (dao.groupNow(g.id)?.peerList?.any { it.key == p.key } != true) return@forEach
-                runCatching { n += read(dao.groupNow(g.id) ?: g, p, me.id) } // quiet: the full sync reports problems
+                tried++
+                runCatching { n += read(dao.groupNow(g.id) ?: g, p, me.id) }.onFailure { failed++ } // quiet: the full sync reports problems
             }
         }
-        n
+        Polled(n, tried == 0 || failed < tried)
     } }
+
+    /** What [poll] found: how much changed, and whether Drive could be reached at all. */
+    data class Polled(val changed: Int, val reachable: Boolean)
 
     /** Someone changed one of your events (read by [poll]): it should be shared on. */
     val wantsPublish: Boolean get() = synchronized(ownEventsChanged) { ownEventsChanged.isNotEmpty() }
@@ -291,6 +296,8 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
             .put("photo", upload(e.photoFile) ?: JSONObject.NULL).put("start", e.startDay).put("end", e.endDay ?: JSONObject.NULL).put("notes", e.notes)
             .put("created", e.createdAt).put("at", e.updatedAt).put("by", e.editedBy ?: me.id)
             .put("people", JSONArray(e.peopleIds.mapNotNull(::person))).put("pins", JSONArray(e.pinIds.mapNotNull(::docRef)))
+        // the version the others start from: what a later merge of the notes compares against
+        own.forEach { e -> if (!prefs.contains("notes-base:${e.id}")) prefs.edit().putString("notes-base:${e.id}", e.notes).apply() }
         index.put("events", JSONArray(own.map { e -> eventJson(e, e.id, me.id).put("visible", JSONArray(e.visibleIds.mapNotNull(::person))) }))
         index.put("eventEdits", JSONArray(theirs.filter { it.editedBy == null && it.updatedAt > 0 }.mapNotNull { e ->
             e.organiserKey?.let { k -> eventJson(e, e.id.removePrefix("s:${g.id}:$k:"), k) }
@@ -483,14 +490,25 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
         fun refs(a: JSONArray?) = a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } }.orEmpty()
         fun localEvent(owner: String, id: String) = if (owner == myKey) id else "s:${g.id}:$owner:$id"
         /** [base] with the event's contents from [ev] (who sees it stays as it is: only the organiser changes that). */
-        fun content(ev: JSONObject, base: EventEntity) = base.copy(
-            name = ev.getString("name"), art = ev.optString("art", "trip"), photoFile = ev.optStringOrNull("photo")?.let { fetch(it) },
-            startDay = ev.getString("start"), endDay = ev.optStringOrNull("end"),
-            people = refs(ev.optJSONArray("people")).mapNotNull(::person).joinToString(","),
-            pins = refs(ev.optJSONArray("pins")).mapNotNull { r -> if (r.optString("k") == myKey) r.optString("id") else "s:${g.id}:${r.optString("k")}:${r.optString("id")}" }.joinToString(","),
-            notes = ev.optString("notes"), updatedAt = ev.optLong("at", 0L),
-            editedBy = ev.optString("by").ifEmpty { p.key }.takeIf { it != myKey } ?: p.key,
-        )
+        fun content(ev: JSONObject, base: EventEntity): EventEntity {
+            val at = ev.optLong("at", 0L)
+            // You changed the notes here too (at the same time, or before this phone shared it): both are kept, and the
+            // merged notes go out again as your change.
+            val theirs = ev.optString("notes")
+            val mine = base.notes.takeIf { base.editedBy == null && base.updatedAt > 0 && it != theirs }
+            val notes = mine?.let { NotesMerge.merge(prefs.getString("notes-base:${base.id}", null).orEmpty(), it, theirs) } ?: theirs
+            prefs.edit().putString("notes-base:${base.id}", theirs).apply()
+            val merged = notes != theirs
+            if (merged) synchronized(ownEventsChanged) { ownEventsChanged += g.id }
+            return base.copy(
+                name = ev.getString("name"), art = ev.optString("art", "trip"), photoFile = ev.optStringOrNull("photo")?.let { fetch(it) },
+                startDay = ev.getString("start"), endDay = ev.optStringOrNull("end"),
+                people = refs(ev.optJSONArray("people")).mapNotNull(::person).joinToString(","),
+                pins = refs(ev.optJSONArray("pins")).mapNotNull { r -> if (r.optString("k") == myKey) r.optString("id") else "s:${g.id}:${r.optString("k")}:${r.optString("id")}" }.joinToString(","),
+                notes = notes, updatedAt = if (merged) maxOf(System.currentTimeMillis(), at + 1) else at,
+                editedBy = if (merged) null else ev.optString("by").ifEmpty { p.key }.takeIf { it != myKey } ?: p.key,
+            )
+        }
         // their own events: they decide who sees them
         j.optJSONArray("events")?.forEachObj { ev ->
             val visible = refs(ev.optJSONArray("visible"))
@@ -937,7 +955,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
     private suspend fun removeEvents(g: GroupEntity, key: String, keep: Set<String> = emptySet()) {
         dao.eventsNow().filter { it.id.startsWith("s:${g.id}:$key:") && it.id !in keep }.forEach { e ->
             dao.eventDocumentsNow(e.id).forEach { d -> d.attachments.forEach { files.delete(it.id) }; files.delete(d.pictureFile); dao.deleteDocument(d.id) }
-            files.delete(e.photoFile); dao.deleteEventRow(e.id)
+            files.delete(e.photoFile); dao.deleteEventRow(e.id); prefs.edit().remove("notes-base:${e.id}").apply()
         }
     }
 

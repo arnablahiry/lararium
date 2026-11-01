@@ -191,6 +191,10 @@ private fun GroupHome(g: String?, onMember: (String) -> Unit, onSettings: () -> 
     androidx.activity.compose.BackHandler(enabled = searching) { endSearch() }
     val self = members.firstOrNull { it.isSelf }
     val events = allEvents.filter { it.visibleTo(self?.id) && Events.isCurrent(it.startDay, it.endDay) }
+    val groups by app.repo.groups.collectAsStateWithLifecycle(emptyList())
+    val shared = groups.firstOrNull { it.id == g }?.let { it.peerList.isNotEmpty() || it.shareIndex != null } == true
+    // passports, visas, insurance… running out within about 6 months (or just ran out)
+    val expiring = remember(docs, members) { com.familydocs.app.events.ExpiryReminders.due(docs, members) }
     val full = GridItemSpan(2)
     // worked out once per query (not on every recomposition while something animates)
     val hits = remember(query, members, docs) { if (query.isBlank()) emptyList() else search(query, members, docs) }
@@ -214,7 +218,11 @@ private fun GroupHome(g: String?, onMember: (String) -> Unit, onSettings: () -> 
     ) {
         item(span = { full }) {
             Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp)) {
-                Text("${greeting()}, ${account?.name?.substringBefore(' ').orEmpty()}", style = fdText(14f, color = c.muted))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${greeting()}, ${account?.name?.substringBefore(' ').orEmpty()}", style = fdText(14f, color = c.muted), modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (shared) SyncStatusLine(onSettings)
+                }
                 FdInput(query, { query = it }, Modifier.padding(top = 14.dp), placeholder = "Search documents, numbers…", icon = if (searching) null else "search",
                     leading = if (searching) { { FdIconButton("back", ::endSearch, size = 30.dp, iconSize = 20.dp, description = "Back to home") } } else null)
                 // A newer version on GitHub: a quiet hint that opens Settings at the update; while it downloads (it keeps
@@ -266,6 +274,7 @@ private fun GroupHome(g: String?, onMember: (String) -> Unit, onSettings: () -> 
                 }
             }
         } else {
+            if (expiring.isNotEmpty()) item(span = { full }) { ExpiringBox(expiring, onDocument, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) }
             item(span = { full }) { Box(Modifier.size(28.dp)) }
             items(members, key = { it.id }) { m ->
                 val n = counts.firstOrNull { it.memberId == m.id }?.n ?: 0
@@ -507,6 +516,8 @@ private fun SyncSheet(g: com.familydocs.app.data.GroupEntity, onMinimise: () -> 
     val members by remember(g.id) { app.repo.membersOf(g.id) }.collectAsStateWithLifecycle(emptyList())
     var sending by remember { mutableStateOf(false) }
     val send = com.familydocs.app.ui.home.rememberInviteSender { sending = it }
+    var qr by remember { mutableStateOf<com.familydocs.app.domain.GroupInvite?>(null) }
+    val showQr = com.familydocs.app.ui.home.rememberInvite({ sending = it }) { qr = it }
     // look again now (their phones may have added you meanwhile)
     LaunchedEffect(g.id) { com.familydocs.app.backup.BackupWorker.syncShares(app.appContext) }
     val names = com.familydocs.app.data.Peer.names(waiting.map { it.name.ifBlank { "someone" } })
@@ -536,9 +547,76 @@ private fun SyncSheet(g: com.familydocs.app.data.GroupEntity, onMinimise: () -> 
             }
             com.familydocs.app.ui.ds.FdButton(if (sending) "Preparing your link…" else "Send my link to them", { send(g.id) }, Modifier.padding(top = 16.dp),
                 icon = "share", enabled = !sending)
+            com.familydocs.app.ui.ds.FdTextButton("They're right here: show a QR code", { showQr(g.id) }, enabled = !sending)
             Text("Already sent it? You're synced as soon as they tap it; this stays on Home until then.",
                 style = fdText(12f, color = c.muted), modifier = Modifier.padding(top = 10.dp))
         }
         Spacer(Modifier.height(10.dp))
+    }
+    qr?.let { inv -> InviteQrSheet(inv, g.name) { qr = null } }
+}
+
+/**
+ * Home, next to the greeting: "● Up to date · just now", "Sharing your changes…", or what's wrong (tap: retry, or
+ * Settings when Google Drive needs you to sign in again).
+ */
+@Composable
+private fun SyncStatusLine(onSettings: () -> Unit) {
+    val app = LocalContainer.current
+    val c = Fd.c
+    val s by app.syncStatus.collectAsStateWithLifecycle()
+    var now by remember { androidx.compose.runtime.mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(10_000) } }
+    val last = maxOf(s.sharedAt, s.checkedAt)
+    val ago = (now - last).coerceAtLeast(0L) / 1000
+    val (dot, text) = when {
+        s.problem != null -> c.danger to s.problem!!
+        s.offline -> c.muted to "Offline"
+        s.sharing -> c.accent to "Sharing…"
+        last == 0L -> c.muted to "Syncing…"
+        else -> c.ok to "Up to date · " + when { ago < 60 -> "just now"; ago < 3600 -> "${ago / 60} min ago"; else -> "${ago / 3600} h ago" }
+    }
+    val tint by androidx.compose.animation.animateColorAsState(dot, tween(300), label = "syncDot")
+    Row(Modifier.clip(RoundedCornerShape(99.dp)).clickable(enabled = s.problem != null) { if (s.needsGoogle) onSettings() else app.publishSoon() }
+        .padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(7.dp).clip(CircleShape).background(tint))
+        Text(text, style = fdText(11.5f, color = if (s.problem != null) c.danger else c.muted), maxLines = 1)
+    }
+}
+
+/** Home: documents running out within about 6 months (or that just did), soonest first; tap one to open it. */
+@Composable
+private fun ExpiringBox(list: List<com.familydocs.app.events.ExpiryReminders.Due>, onDocument: (String) -> Unit, modifier: Modifier = Modifier) {
+    val app = LocalContainer.current
+    val c = Fd.c
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var all by remember { mutableStateOf(false) }
+    var canNotify by remember { mutableStateOf(com.familydocs.app.events.EventReminders.canNotify(context)) }
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        canNotify = ok
+        if (ok) com.familydocs.app.events.ExpiryReminders.schedule(context)
+    }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))
+        .animateContentSize(tween(260, easing = com.familydocs.app.ui.ds.FdEase)).padding(vertical = 6.dp)) {
+        Row(Modifier.padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FdIcon("calendar", 17.dp, tint = c.accent)
+            Text("Expiring soon", style = fdText(13.5f, FontWeight.SemiBold), modifier = Modifier.weight(1f))
+            if (!canNotify && android.os.Build.VERSION.SDK_INT >= 33)
+                com.familydocs.app.ui.ds.FdTextButton("Remind me", { app.appLock.expectExternalActivity(); ask.launch(android.Manifest.permission.POST_NOTIFICATIONS) })
+        }
+        (if (all) list else list.take(3)).forEach { d ->
+            val urgent = d.level != com.familydocs.app.domain.Expiry.Level.SIX_MONTHS
+            Row(Modifier.fillMaxWidth().clickable { onDocument(d.doc.id) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FdDocIcon(d.doc, 40.dp)
+                Column(Modifier.weight(1f)) {
+                    Text("${d.doc.name} · ${if (d.member.isSelf) "You" else d.member.name}", style = fdText(14f, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(com.familydocs.app.domain.Expiry.label(d.expiry), style = fdText(12f, if (urgent) FontWeight.SemiBold else FontWeight.Normal, if (urgent) c.danger else c.muted))
+                }
+                FdIcon("chev", 16.dp, tint = c.muted)
+            }
+        }
+        if (list.size > 3) Text(if (all) "Show less" else "Show all ${list.size}", style = fdText(12.5f, FontWeight.SemiBold, c.primary),
+            modifier = Modifier.padding(start = 14.dp, top = 2.dp, bottom = 6.dp).clickable { all = !all })
     }
 }
