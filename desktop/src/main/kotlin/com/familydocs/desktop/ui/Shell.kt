@@ -233,7 +233,7 @@ private fun Footer() {
             FooterButton("refresh", "Update now (⌘R)") { app.load() }
             FooterButton("lock", "Lock (⌘L)", enabled = app.passcode != null) { app.lock() }
             FooterButton(if (c.dark) "sun" else "moon", "Light / dark") {
-                app.setTheme(when (app.theme) { Theme.SYSTEM -> if (c.dark) Theme.LIGHT else Theme.DARK; Theme.LIGHT -> Theme.DARK; Theme.DARK -> Theme.LIGHT })
+                app.chooseTheme(when (app.theme) { Theme.SYSTEM -> if (c.dark) Theme.LIGHT else Theme.DARK; Theme.LIGHT -> Theme.DARK; Theme.DARK -> Theme.LIGHT })
             }
             Spacer(Modifier.weight(1f))
             FooterButton("logout", "Sign out") { app.signOut() }

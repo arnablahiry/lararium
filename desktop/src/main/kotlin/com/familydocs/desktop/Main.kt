@@ -71,7 +71,7 @@ class AppModel(private val scope: CoroutineScope) {
     /** When the window was last left (for locking after a while away). */
     var awaySince = 0L
 
-    fun setTheme(t: Theme) { theme = t; prefs.put("theme", t.name) }
+    fun chooseTheme(t: Theme) { theme = t; prefs.put("theme", t.name) }
     fun selectGroup(id: String) { group = id; prefs.put("group", id); stack.clear(); stack += Page.Home }
     fun go(p: Page) { if (stack.lastOrNull() != p) stack += p }
     fun back() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
