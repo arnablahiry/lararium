@@ -69,3 +69,12 @@ jobs:
             Lararium-mac-*.dmg
             Lararium-mac.dmg
           body_path: mac-notes.md
+      - name: "The newest .dmg under a fixed link (the website's Download for Mac)"
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: mac
+          name: Lararium for Mac (newest)
+          make_latest: false
+          overwrite_files: true
+          files: Lararium-mac.dmg
+          body_path: mac-notes.md
