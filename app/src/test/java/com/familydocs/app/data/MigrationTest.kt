@@ -14,7 +14,8 @@ import org.robolectric.annotation.Config
  * the current one, and ends up exactly as the app expects it: a broken upgrade fails here instead of on a phone.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+// a plain Application: the app's own one opens the Android Keystore, which the JVM test runtime doesn't have
+@Config(sdk = [34], application = android.app.Application::class)
 class MigrationTest {
     private val folder = AppDatabase::class.java.canonicalName!!
 

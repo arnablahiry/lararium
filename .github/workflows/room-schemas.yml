@@ -1,4 +1,4 @@
-# One-off (and re-runnable from the Actions tab): rebuilds the database schema of every past version from the commit
+# One-off (re-runnable from the Actions tab): rebuilds the database schema of every past version from the commit
 # that had it, and commits them to app/schemas, so the upgrade test can check every version a phone might still have.
 # From now on each build commits the current version's schema by itself (see build-apk.yml).
 name: Room schemas
@@ -44,9 +44,13 @@ jobs:
             if grep -q "google-services" app/build.gradle.kts && [ ! -f app/google-services.json ]; then
               printf '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"com.familydocs.app"}},"api_key":[{"current_key":"x"}]}],"configuration_version":"1"}' > app/google-services.json
             fi
-            ./gradlew --no-daemon -q :app:kspDebugKotlin || true
+            ./gradlew --no-daemon :app:compileDebugKotlin > "build-$c.log" 2>&1 || true
             f=$(find app -path '*com.familydocs.app.data.AppDatabase/${{ matrix.v }}.json' | head -1)
             if [ -n "$f" ]; then cp "$f" out/${{ matrix.v }}.json; echo "version ${{ matrix.v }} from $c"; break; fi
+            echo "== $c: no schema"; find app -name '*.json' -path '*AppDatabase*' | head
+            # why, shown on the run page
+            { echo "$c:"; grep -E -A6 'What went wrong|^e: |error:' "build-$c.log" | head -40; tail -15 "build-$c.log"; } > why.txt
+            echo "::warning title=Version ${{ matrix.v }} at $c::$(sed 's/%/%25/g; s/\r//g' why.txt | awk '{printf "%s%%0A", $0}')"
           done
           test -f out/${{ matrix.v }}.json
       - uses: actions/upload-artifact@v4
@@ -64,7 +68,7 @@ jobs:
         run: |
           d=app/schemas/com.familydocs.app.data.AppDatabase
           mkdir -p $d
-          for f in got/*.json; do [ -f "$d/$(basename $f)" ] || cp "$f" "$d/"; done
+          for f in got/*.json; do [ -f "$f" ] || continue; [ -f "$d/$(basename $f)" ] || cp "$f" "$d/"; done
           ls $d
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
