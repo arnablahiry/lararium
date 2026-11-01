@@ -27,6 +27,7 @@ jobs:
           - { v: 7, commits: "fce60ed 27dbd81 cd6d235" }
           - { v: 8, commits: "485d9de ed8e5ff" }
           - { v: 9, commits: "e1a9864 61db960" }
+          - { v: 10, commits: "14839a0 0ede944" }
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -76,4 +77,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/schemas
-          git diff --cached --quiet || { git commit -m "Database schemas of earlier versions (for the upgrade test)"; git pull --rebase -q; git push; }
+          git diff --cached --quiet || { git commit -m "Database schemas of earlier versions (for the upgrade test)"; git pull --rebase --autostash -q; git push; }
