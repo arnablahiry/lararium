@@ -336,8 +336,9 @@ fun JoinGroupSheet(onJoined: (groupId: String, invitedBy: String?) -> Unit, onDi
     val here = inv?.let { i -> groups.firstOrNull { it.id == i.groupId } }
     FdSheet(onDismiss) {
         if (here != null) SheetTitle("Add someone to ${here.name}", "This is their invite: adding it puts them in ${here.name} on this phone, and everyone else in the group finds them through you.")
-        else SheetTitle("Join a group", "Paste the invite someone in the group sent you (or just tap the link they sent). Then send yours back to them, so they see you too.")
+        else SheetTitle("Join a group", "Paste the invite someone in the group sent you, tap the link they sent, or scan their invite QR code. Then send yours back to them, so they see you too.")
         FdInput(text, { text = it; error = null }, placeholder = "LR.… or the invite link", singleLine = false, error = error != null)
+        QrInviteButtons({ text = it; error = null }, Modifier.padding(top = 10.dp))
         error?.let { Text(it, style = fdText(12.5f, color = c.danger), modifier = Modifier.padding(top = 8.dp)) }
         FdButton(if (busy) "Opening the invite…" else if (here != null) "Add them" else "Join", {
             scope.launch {

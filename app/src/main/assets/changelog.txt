@@ -8,6 +8,7 @@
 - Home shows whether you're synced: "Up to date · just now", "Sharing…", or what needs fixing
 - Two people editing an event's notes at the same time no longer lose each other's changes; events show who changed them last
 - Invite someone next to you with a QR code (Group settings › Show invite as a QR code)
+- Joining (also while making your account): scan someone's invite QR code with the camera, or read it from a photo or screenshot
 
 ## 0.9.1
 - Much faster group syncing: your changes go out within a second, and while Lararium is open the others' changes show up within seconds

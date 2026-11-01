@@ -210,11 +210,16 @@ fun RegisterScreen(vm: OnboardingViewModel, onBack: () -> Unit, title: String = 
             // ---- your group: start one (e.g. your family) or join one with its code ----
             if (!vm.editing) FdField("Your group", error = e["group"],
                 hint = if (vm.groupMode == "create") "Everyone in it shares its people, Common vault and events. It gets its own code."
-                       else "Paste the invite someone in the group sent you, or a code from your own Google backup.") {
+                       else "Paste the invite someone in the group sent you, scan their invite QR code, or enter a code from your own Google backup.") {
                 FdSegmented(listOf(Triple("create", "plus", "Create a group"), Triple("join", "key", "Join a group")), vm.groupMode) { vm.groupMode = it }
                 if (vm.groupMode == "create") FdInput(vm.groupName, { vm.groupName = it }, Modifier.padding(top = 10.dp), placeholder = "Group name, e.g. Family")
-                else FdInput(vm.groupCode, { vm.groupCode = it }, Modifier.padding(top = 10.dp), placeholder = "Invite (LR.…) or group code",
-                    singleLine = false)
+                else {
+                    FdInput(vm.groupCode, { vm.groupCode = it }, Modifier.padding(top = 10.dp), placeholder = "Invite (LR.…) or group code",
+                        singleLine = false)
+                    // someone next to you: scan the QR code on their phone (or a screenshot / photo of it)
+                    com.familydocs.app.ui.home.QrInviteButtons({ t -> vm.groupCode = com.familydocs.app.domain.GroupInvite.find(t)?.encode() ?: t },
+                        Modifier.padding(top = 10.dp))
+                }
             }
 
             // Not asked at sign-up (the filters follow your documents); editable later in Settings › Your account.

@@ -94,8 +94,10 @@ dependencies {
 
     implementation(libs.androidx.biometric)
 
-    // QR codes for invites (encoding only)
+    // QR codes for invites: made and read from photos with ZXing; scanned with Google's code scanner (camera UI from
+    // Play services, so the app needs no camera permission)
     implementation(libs.zxing.core)
+    implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
     // database upgrades checked against every past version's schema (app/schemas), on the JVM
