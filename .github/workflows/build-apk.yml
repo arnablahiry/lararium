@@ -57,6 +57,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Room writes it under app/build; the repository keeps one copy per version (an existing one is never changed)
+          d=app/schemas/com.familydocs.app.data.AppDatabase; mkdir -p $d
+          find app/build -path '*com.familydocs.app.data.AppDatabase/*.json' | while read -r f; do [ -f "$d/$(basename "$f")" ] || cp "$f" "$d/"; done
           git add app/schemas 2>/dev/null || true
           git diff --cached --quiet || { git commit -q -m "Database schema $(grep '^familydocs.versionName' gradle.properties | cut -d= -f2)"; git pull --rebase -q && git push -q || echo "couldn't push the schema (it's added next time)"; }
       - name: Name the APK
