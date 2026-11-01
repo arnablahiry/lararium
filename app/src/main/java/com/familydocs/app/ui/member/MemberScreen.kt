@@ -59,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -97,7 +98,11 @@ fun MemberScreen(memberId: String, onBack: () -> Unit, onEdit: () -> Unit, onPas
     val app = LocalContainer.current
     val c = Fd.c
     val member by app.repo.member(memberId).collectAsStateWithLifecycle(null)
-    val docs by app.repo.documents(memberId).collectAsStateWithLifecycle(emptyList())
+    val allDocs by app.repo.documents(memberId).collectAsStateWithLifecycle(emptyList())
+    // put away (replaced by a renewed one): listed at the bottom, not in the wallet
+    val docs = remember(allDocs) { allDocs.filter { !it.archived } }
+    val archivedDocs = remember(allDocs) { allDocs.filter { it.archived }.sortedByDescending { it.archivedAt } }
+    var showArchived by rememberSaveable(memberId) { mutableStateOf(false) }
     val passwords by app.repo.passwords(memberId).collectAsStateWithLifecycle(emptyList())
     val everyone by app.repo.members.collectAsStateWithLifecycle(emptyList())
     val account by app.repo.account.collectAsStateWithLifecycle(null)
@@ -233,6 +238,23 @@ fun MemberScreen(memberId: String, onBack: () -> Unit, onEdit: () -> Unit, onPas
             if (shown.isEmpty()) item {
                 FdEmpty(if (docs.isEmpty()) "No documents yet. Tap Add document to scan or upload ${m.name}'s first card." else "No documents for the selected countries.",
                     Modifier.padding(top = 12.dp))
+            }
+            // ---- archived: old passports, licences… kept for reference ----
+            if (archivedDocs.isNotEmpty()) item {
+                Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 8.dp).clip(RoundedCornerShape(99.dp)).clickable { showArchived = !showArchived }
+                    .padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FdIcon("archive", 16.dp, tint = c.muted)
+                    Text("Archived · ${archivedDocs.size}", style = fdText(12.5f, FontWeight.SemiBold, c.muted))
+                    FdIcon("chev", 14.dp, tint = c.muted, modifier = Modifier.graphicsLayer { rotationZ = if (showArchived) 90f else 0f })
+                }
+            }
+            if (archivedDocs.isNotEmpty() && showArchived) item {
+                FdList(Modifier.graphicsLayer { alpha = .75f }) {
+                    archivedDocs.forEachIndexed { i, d ->
+                        FdListItem(d.name, "Archived ${java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.UK).format(java.util.Date(d.archivedAt ?: 0L))}" +
+                            (d.validUntil()?.let { " · valid until $it" } ?: ""), first = i == 0, onClick = { open(d) }, leading = { FdDocIcon(d, 42.dp) })
+                    }
+                }
             }
         }
         }

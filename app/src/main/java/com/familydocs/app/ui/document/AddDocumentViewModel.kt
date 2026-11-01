@@ -189,6 +189,8 @@ class AddDocumentViewModel(private val c: AppContainer, private val appContext: 
             saving = false
             // (another member's document and you're no longer an admin)
             r.exceptionOrNull()?.let { android.widget.Toast.makeText(appContext, it.message ?: "Couldn't save", android.widget.Toast.LENGTH_LONG).show(); return@launch }
+            // a renewed passport, licence…: offer to put the old one away
+            if (old == null) c.repo.replacedBy(doc).takeIf { it.isNotEmpty() }?.let { c.archiveOffer.value = doc.name to it.map { d -> d.id } }
             onSaved()
         }
     }

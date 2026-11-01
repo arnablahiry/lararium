@@ -59,6 +59,7 @@ import com.familydocs.app.ui.components.copySensitive
 import com.familydocs.app.ui.ds.BtnKind
 import com.familydocs.app.ui.ds.Fd
 import com.familydocs.app.ui.ds.FdButton
+import com.familydocs.app.ui.ds.FdBanner
 import com.familydocs.app.ui.ds.FdConfirmSheet
 import com.familydocs.app.ui.ds.FdDocIcon
 import com.familydocs.app.ui.ds.FdEmpty
@@ -195,9 +196,16 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                      else if (sharedBy != null) "Shared by $sharedBy · read-only here, they keep it up to date"
                      else "Added ${fmtDate(d.createdAt)} · ${if (d.readByOcr) "details read from the file" else "entered by hand"}", style = fdText(11.5f, color = c.muted))
             }
+            // put away (an old one, replaced by a renewed document)
+            if (d.archived) FdBanner("archive", "Archived ${fmtDate(d.archivedAt ?: 0L)} · kept for reference, out of the wallet and expiry reminders",
+                Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp)) {
+                if (canEdit) com.familydocs.app.ui.ds.FdTextButton("Unarchive", { scope.launch { runCatching { app.repo.setArchived(d.id, false) }.onSuccess { toast.show("Back in the wallet") } } })
+            }
             // `.actions`
             if (canEdit) Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FdButton("Edit", { onEdit(d.memberId) }, Modifier.weight(1f), BtnKind.Ghost, icon = "edit")
+                if (!d.archived) FdButton("Archive", { scope.launch { runCatching { app.repo.setArchived(d.id, true) }.onSuccess { toast.show("Archived"); onBack() }.onFailure { toast.show(it.message ?: "Couldn't archive") } } },
+                    Modifier.weight(1f), BtnKind.Ghost, icon = "archive")
                 FdButton("Delete", { confirmDelete = true }, Modifier.weight(1f), BtnKind.Ghost, icon = "trash", contentColor = c.danger)
             }
         }

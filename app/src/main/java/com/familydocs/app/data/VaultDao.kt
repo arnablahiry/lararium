@@ -52,7 +52,7 @@ interface VaultDao {
     @Query("SELECT * FROM documents WHERE id = :id") suspend fun documentNow(id: String): DocumentEntity?
     @Upsert suspend fun upsertDocument(d: DocumentEntity)
     @Query("DELETE FROM documents WHERE id = :id") suspend fun deleteDocument(id: String)
-    @Query("SELECT memberId, COUNT(*) AS n FROM documents WHERE eventId IS NULL GROUP BY memberId") fun documentCounts(): Flow<List<MemberCount>>
+    @Query("SELECT memberId, COUNT(*) AS n FROM documents WHERE eventId IS NULL AND archivedAt IS NULL GROUP BY memberId") fun documentCounts(): Flow<List<MemberCount>>
 
     // ---- events ----
     @Query("SELECT * FROM events ORDER BY startDay") fun events(): Flow<List<EventEntity>>

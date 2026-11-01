@@ -220,6 +220,10 @@ fun SettingsScreen(onBack: () -> Unit, onEditAccount: () -> Unit, onChangePassco
                 FdListItem("Block screenshots", "Hides the app in Recents too", icon = "eyeoff", trailing = {
                     FdSwitch(s.blockScreenshots, { v -> app.settings.update { it.copy(blockScreenshots = v) } }, "Block screenshots")
                 })
+                FdListItem("Emergency info on the lock screen", "Emergency cards (blood group, allergies, who to call) readable without the passcode",
+                    icon = "medical", trailing = {
+                    FdSwitch(s.emergencyOnLock, { v -> app.settings.update { it.copy(emergencyOnLock = v) } }, "Emergency info on the lock screen")
+                })
             }
 
             FdSectionTitle("Backup")

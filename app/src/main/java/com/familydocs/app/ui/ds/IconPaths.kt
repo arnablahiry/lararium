@@ -24,6 +24,7 @@ internal val ICON_PATHS: Map<String, List<Pair<String, Boolean>>> = mapOf(
     "cert" to listOf("M5.5 3h13a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1 -1.5 1.5h-13a1.5 1.5 0 0 1 -1.5 -1.5v-10a1.5 1.5 0 0 1 1.5 -1.5z" to false, "M8 7h8M8 10h5" to false, "M12.2 16.5a2.8 2.8 0 1 0 5.6 0a2.8 2.8 0 1 0 -5.6 0z" to false, "M13.4 18.9L12.8 22l2.2-1.1 2.2 1.1-.6-3.1" to false),
     "medical" to listOf("M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-8a4 4 0 0 1 -4 -4v-8a4 4 0 0 1 4 -4z" to false, "M12 8v8M8 12h8" to false),
     "receipt" to listOf("M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z" to false, "M9 8h6M9 11.5h6M9 15h3.5" to false),
+    "archive" to listOf("M3 4h18v5H3z" to false, "M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" to false, "M10 13h4" to false),
     "file" to listOf("M7 3h7l5 5v12a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" to false, "M14 3v5h5" to false),
     "key" to listOf("M4 15.5a4 4 0 1 0 8 0a4 4 0 1 0 -8 0z" to false, "M10.9 12.6L20 3.5M16.8 6.7l2.8 2.8M14.6 8.9l2 2" to false),
     "camera" to listOf("M5.5 7h13a2.5 2.5 0 0 1 2.5 2.5v8a2.5 2.5 0 0 1 -2.5 2.5h-13a2.5 2.5 0 0 1 -2.5 -2.5v-8a2.5 2.5 0 0 1 2.5 -2.5z" to false, "M8.2 7l1.5-3h4.6l1.5 3" to false, "M8.5 13.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0z" to false),

@@ -68,6 +68,9 @@ class AppContainer(context: Context) {
                           val problem: String? = null, val needsGoogle: Boolean = false, val offline: Boolean = false)
     val syncStatus = kotlinx.coroutines.flow.MutableStateFlow(SyncStatus())
 
+    /** Just added a renewed document: the older ones it replaces, offered to be archived (the new one's name, their ids). */
+    val archiveOffer = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, List<String>>?>(null)
+
     /** A document to open (from an expiry reminder), once the vault is showing. */
     val openDocument = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 

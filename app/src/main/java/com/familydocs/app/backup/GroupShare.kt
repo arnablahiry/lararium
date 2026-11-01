@@ -270,6 +270,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
                 JSONObject().put("id", d.id).put("member", d.memberId).put("name", d.name).put("fields", d.fieldsJson).put("text", d.rawText)
                     .put("ocr", d.readByOcr).put("country", d.country ?: JSONObject.NULL).put("display", d.display.name)
                     .put("flag", d.showFlag ?: JSONObject.NULL).put("created", d.createdAt).put("updated", d.updatedAt).put("order", d.sortOrder ?: JSONObject.NULL)
+                    .put("archived", d.archivedAt ?: JSONObject.NULL)
                     .put("files", JSONArray(d.attachments.mapNotNull { a -> upload(a.id)?.let { JSONObject().put("f", it).put("mime", a.mime) } }))
                     .put("picture", upload(d.pictureFile) ?: JSONObject.NULL)
             }))
@@ -458,6 +459,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
                 readByOcr = d.optBoolean("ocr"), country = d.optStringOrNull("country"), createdAt = d.optLong("created"), updatedAt = d.getLong("updated"),
                 showFlag = if (d.isNull("flag")) null else d.getBoolean("flag"), moreFiles = Attachment.encode(atts.drop(1)),
                 sortOrder = if (d.isNull("order")) null else d.getInt("order"), origin = p.key,
+                archivedAt = if (!d.has("archived") || d.isNull("archived")) null else d.getLong("archived"),
             ))
             changed++
         }
@@ -477,6 +479,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
                 readByOcr = d.optBoolean("ocr"), country = d.optStringOrNull("country"), createdAt = existing?.createdAt ?: d.optLong("created", System.currentTimeMillis()),
                 updatedAt = d.optLong("updated", System.currentTimeMillis()), showFlag = if (d.isNull("flag")) null else d.optBoolean("flag"),
                 moreFiles = Attachment.encode(atts.drop(1)), sortOrder = existing?.sortOrder, origin = p.key,
+                archivedAt = if (!d.has("archived") || d.isNull("archived")) null else d.getLong("archived"),
             ))
             keepDocs += id; changed++
         }
@@ -756,7 +759,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
         val docId = row.id.removePrefix("s:$gid:$to:")
         val d = JSONObject().put("id", docId).put("common", member.shared).put("name", row.name).put("fields", row.fieldsJson).put("text", row.rawText)
             .put("ocr", row.readByOcr).put("country", row.country ?: JSONObject.NULL).put("display", row.display.name).put("flag", row.showFlag ?: JSONObject.NULL)
-            .put("created", row.createdAt).put("updated", row.updatedAt)
+            .put("created", row.createdAt).put("updated", row.updatedAt).put("archived", row.archivedAt ?: JSONObject.NULL)
             .put("files", JSONArray(row.attachments.map { JSONObject().put("id", it.id).put("mime", it.mime) })).put("picture", row.pictureFile ?: JSONObject.NULL)
         addOp(gid, newOp(to, "doc").put("doc", d)) { it.optString("to") == to && it.optString("kind") in DOC_KINDS && docIdOf(it) == docId }
         BackupWorker.soon(context)
@@ -890,6 +893,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
                     country = d.optStringOrNull("country"), createdAt = old?.createdAt ?: d.optLong("created", System.currentTimeMillis()),
                     updatedAt = d.optLong("updated", System.currentTimeMillis()), showFlag = if (d.isNull("flag")) null else d.optBoolean("flag"),
                     moreFiles = Attachment.encode(atts.drop(1)), sortOrder = old?.sortOrder, origin = null,
+                    archivedAt = if (!d.has("archived") || d.isNull("archived")) null else d.getLong("archived"),
                 ))
                 return "${if (old == null) "added" else "edited"} “${d.getString("name")}”"
             }

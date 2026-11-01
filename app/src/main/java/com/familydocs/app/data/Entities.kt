@@ -140,7 +140,10 @@ data class DocumentEntity(
     val sortOrder: Int? = null,
     /** null = added on this phone; else the key of the group member who shared it (read-only here). Database version 8. */
     val origin: String? = null,
+    /** When it was put away (replaced by a renewed one): kept and searchable, but out of the wallet and reminders. Version 11. */
+    val archivedAt: Long? = null,
 ) {
+    val archived: Boolean get() = archivedAt != null
     /** Every file of the document (front, back, more pages…), in order. */
     val attachments: List<Attachment> get() = listOfNotNull(fileId?.let { Attachment(it, fileMime ?: "image/jpeg") }) + Attachment.decode(moreFiles)
     val fields: List<DocField> get() = DocMemo.fields(fieldsJson)

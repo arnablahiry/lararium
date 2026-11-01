@@ -97,6 +97,15 @@ private fun VaultNav() {
     val toast = LocalToast.current
     val idArg = listOf(navArgument("id") { type = NavType.StringType })
     val box = cropBoxPx()
+    // a renewed document was just added: put the old one away?
+    val offer by c.archiveOffer.collectAsStateWithLifecycle()
+    offer?.let { (name, ids) ->
+        val what = com.familydocs.app.domain.DocTypes.forName(name).let { if (it.matched) it.label.lowercase() else name }
+        com.familydocs.app.ui.ds.FdConfirmSheet(if (ids.size == 1) "Archive the old $what?" else "Archive the ${ids.size} older ones?",
+            "It moves to Archived at the bottom of the vault: still there and searchable, but out of the wallet and expiry reminders.", "Archive",
+            onConfirm = { scope.launch { ids.forEach { runCatching { c.repo.setArchived(it, true) } }; c.archiveOffer.value = null; toast.show("Archived") } },
+            onDismiss = { c.archiveOffer.value = null }, danger = false)
+    }
     // from an expiry reminder
     val openDoc by c.openDocument.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(openDoc) { openDoc?.let { c.openDocument.value = null; nav.navigate("doc/$it") } }

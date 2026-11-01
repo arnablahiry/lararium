@@ -22,6 +22,7 @@ object DocTypes {
 
     private val RULES: List<Pair<Regex, DocType>> = listOf(
         // Event documents (tickets, bookings, passes) first, so "Car rental" isn't read as a rental agreement.
+        Regex("emergency|medical id|\\bice card", I) to DocType("emergency", "Emergency card", DocIcon.MEDICAL, 0xFFB8323A),
         Regex("flight|boarding|airline|\\bpnr\\b|e-?ticket", I) to DocType("flight", "Flight ticket", DocIcon.PLANE, 0xFF2B7BB9),
         Regex("transport pass|travel ?card|metro|oyster|bus pass|rail ?pass|interrail|eurail|\\bpass\\b", I) to DocType("pass", "Transport pass", DocIcon.CARD, 0xFF2F8F83),
         Regex("\\btrain\\b|\\brail(way)?\\b|\\bbus\\b|coach|ferry", I) to DocType("train", "Train / bus ticket", DocIcon.TRAIN, 0xFFB0603A),
@@ -58,7 +59,7 @@ object DocTypes {
 
     val SUGGESTIONS = listOf(
         "Aadhaar", "PAN Card", "Passport", "Visa", "Residence Permit", "Driving Licence", "Voter ID",
-        "Social Security", "AFM & AMKA", "Health Insurance", "Birth Certificate", "Bank Passbook", "Vaccination Record", "Degree Certificate",
+        "Social Security", "AFM & AMKA", "Health Insurance", "Birth Certificate", "Bank Passbook", "Vaccination Record", "Degree Certificate", "Emergency card",
     )
 
     /** Types offered when adding a document to an event (they set the name, so the icon and colour follow). */
@@ -92,7 +93,11 @@ object DocTypes {
         "property" to listOf("Contract No.", "Landlord", "Address", "Monthly Rent", "Valid Until"),
         "bill" to listOf("Account No.", "Provider", "Amount", "Due Date"),
         "other" to listOf("Document No.", "Name", "Issued On", "Valid Until"),
+        "emergency" to listOf("Blood group", "Allergies", "Medication", "Conditions", "Emergency contact", "Contact phone", "Doctor", "Insurance No."),
     )
+
+    /** Kinds that get renewed: adding a new one offers to archive the old one (same person, same country). */
+    val RENEWABLE = setOf("passport", "visa", "residence", "driving", "insurance", "id", "voter", "pan", "aadhaar", "emergency")
 
     /** Labels whose values are masked until the user taps the eye icon. */
     val SENSITIVE = Regex("social security no|\\bssn\\b|\\bamka\\b|aadhaar number|\\bvid\\b|passport no|permit no|document no|visa no|licence no|account no|iban|policy no|card no|\\bpan\\b|epic", I)

@@ -162,6 +162,8 @@ fun LockScreen(activity: FragmentActivity) {
         }
         Text("Welcome back${account?.name?.let { ", " + it.substringBefore(' ') } ?: ""}", style = fdText(20f, FontWeight.SemiBold), modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
         Text(sub, style = fdText(13f, color = c.muted), modifier = Modifier.heightIn(min = 20.dp).graphicsLayer { alpha = 1f - fadeOut.value })
+        // for someone helping in an emergency: the emergency cards only, no passcode needed
+        EmergencyButton(Modifier.padding(top = 10.dp).graphicsLayer { alpha = 1f - fadeOut.value })
         Spacer(Modifier.size(24.dp))
         FdDots(len, pin.length, shake, success)
         Spacer(Modifier.weight(1f))

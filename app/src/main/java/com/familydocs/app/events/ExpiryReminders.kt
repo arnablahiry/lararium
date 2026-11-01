@@ -46,7 +46,7 @@ object ExpiryReminders {
      */
     fun due(docs: List<DocumentEntity>, members: List<MemberEntity>, today: LocalDate = LocalDate.now(), expiredFor: Long = 90): List<Due> {
         val byId = members.associateBy { it.id }
-        return docs.asSequence().filter { it.eventId == null }.mapNotNull { d ->
+        return docs.asSequence().filter { it.eventId == null && !it.archived }.mapNotNull { d ->
             val m = byId[d.memberId] ?: return@mapNotNull null
             val e = expiryOf(d) ?: return@mapNotNull null
             val level = Expiry.level(e, today) ?: return@mapNotNull null

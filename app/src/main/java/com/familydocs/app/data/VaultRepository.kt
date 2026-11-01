@@ -236,6 +236,22 @@ class VaultRepository(private val dao: VaultDao, val files: FileStore) {
         onChanged()
     }
 
+    /** Puts a document away (or back): kept and searchable, but out of the wallet, counts and expiry reminders. */
+    suspend fun setArchived(id: String, archived: Boolean) {
+        val d = withContext(Dispatchers.IO) { dao.documentNow(id) } ?: return
+        saveDocument(d.copy(archivedAt = if (archived) System.currentTimeMillis() else null), d.fields)
+    }
+
+    /** Older documents a newly added [doc] replaces (same kind, same person, same country): offered to be archived. */
+    suspend fun replacedBy(doc: DocumentEntity): List<DocumentEntity> = withContext(Dispatchers.IO) {
+        val key = com.familydocs.app.domain.DocTypes.forName(doc.name).key
+        if (doc.eventId != null || key !in com.familydocs.app.domain.DocTypes.RENEWABLE) return@withContext emptyList()
+        dao.allDocumentsNow().filter {
+            it.id != doc.id && it.memberId == doc.memberId && it.eventId == null && !it.archived &&
+                com.familydocs.app.domain.DocTypes.forName(it.name).key == key && (it.issuer.isEmpty() || doc.issuer.isEmpty() || it.issuer == doc.issuer)
+        }
+    }
+
     /** New order of a person's cards after hold-and-drag: [ids] top to bottom. */
     suspend fun reorderDocuments(ids: List<String>) = withContext(Dispatchers.IO) {
         ids.forEachIndexed { i, id -> dao.setDocumentOrder(id, i) }

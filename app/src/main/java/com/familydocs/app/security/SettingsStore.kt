@@ -27,6 +27,8 @@ data class Settings(
     val peopleCleanupDone: Boolean = false,
     /** The group shown on Home (id); null = the first one. */
     val currentGroup: String? = null,
+    /** The lock screen offers "Emergency info" (the emergency cards only), readable without the passcode. */
+    val emergencyOnLock: Boolean = true,
 )
 
 class SettingsStore(context: Context) {
@@ -48,6 +50,7 @@ class SettingsStore(context: Context) {
         groupIntroDone = prefs.getBoolean("group_intro", false),
         peopleCleanupDone = prefs.getBoolean("people_cleanup2", false),
         currentGroup = prefs.getString("group", null),
+        emergencyOnLock = prefs.getBoolean("emergency_lock", true),
     )
 
     fun update(block: (Settings) -> Settings) {
@@ -55,6 +58,7 @@ class SettingsStore(context: Context) {
         prefs.edit()
             .putBoolean("biometric", s.biometric).putLong("autolock", s.autoLockMs).putBoolean("shots", s.blockScreenshots)
             .putBoolean("backup", s.backupEnabled).putLong("last_backup", s.lastBackup).putString("view", s.vaultView.name).putString("theme", s.theme.name).putBoolean("viewable_copies", s.viewableCopies).putBoolean("family_preset", s.familyPresetDone).putBoolean("group_intro", s.groupIntroDone).putBoolean("people_cleanup2", s.peopleCleanupDone).putString("group", s.currentGroup)
+            .putBoolean("emergency_lock", s.emergencyOnLock)
             .apply()
         _state.value = s
     }

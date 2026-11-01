@@ -2,6 +2,10 @@
 # the app shows it once after updating, Settings lists it under "Update" before downloading, and CI puts it in the
 # release notes. One "- " line per change, written for the people using the app.
 
+## 0.9.3
+- Renewed a passport, licence or insurance? Adding the new one offers to archive the old one. Archived documents stay at the bottom of the vault and in search, but leave the wallet and the expiry reminders (Archive / Unarchive on any document too)
+- Emergency card: add one per person (blood group, allergies, medication, who to call). "Emergency info" on the lock screen shows them without the passcode, so someone helping can read them; everything else stays locked (Settings › Security to turn it off)
+
 ## 0.9.2
 - Expiry reminders: a quiet notification about 6 months and a month before a passport, visa, licence or insurance runs out, and an "Expiring soon" list on Home
 - Trips warn you when someone going has a passport that expires less than 6 months after the trip

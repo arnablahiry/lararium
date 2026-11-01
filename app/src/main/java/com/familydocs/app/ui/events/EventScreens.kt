@@ -193,7 +193,7 @@ fun EventScreen(eventId: String, onBack: () -> Unit, onEdit: () -> Unit, onDocum
             // A passport of someone going that runs out during the trip or within 6 months after it
             val tripEnd = Events.parse(e.endDay) ?: Events.parse(e.startDay)
             if (tripEnd != null && Events.isTravel(e.art) && !tripEnd.isBefore(java.time.LocalDate.now())) people.forEach { p ->
-                val passport = allDocs.filter { it.memberId == p.id && it.eventId == null && com.familydocs.app.domain.Expiry.isPassport(it.name) }
+                val passport = allDocs.filter { it.memberId == p.id && it.eventId == null && !it.archived && com.familydocs.app.domain.Expiry.isPassport(it.name) }
                     .mapNotNull { d -> com.familydocs.app.events.ExpiryReminders.expiryOf(d)?.let { d to it } }.maxByOrNull { it.second } ?: return@forEach
                 val problem = com.familydocs.app.domain.Expiry.tripProblem(passport.second, tripEnd) ?: return@forEach
                 FdBanner("passport", "${if (p.isSelf) "Your" else p.name + "'s"} passport $problem (${com.familydocs.app.domain.Expiry.format(passport.second)}). " +
@@ -253,7 +253,7 @@ fun EventScreen(eventId: String, onBack: () -> Unit, onEdit: () -> Unit, onDocum
         }
     }
 
-    if (picking) PinSheet(e, members, allDocs.filter { it.eventId == null }, onApply = { ids ->
+    if (picking) PinSheet(e, members, allDocs.filter { it.eventId == null && !it.archived }, onApply = { ids ->
         val added = ids.count { it !in e.pinIds }
         scope.launch { app.repo.setEventPins(e.id, ids); if (added > 0) toast.show("Added $added document${if (added == 1) "" else "s"}") }
         picking = false
