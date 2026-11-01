@@ -35,7 +35,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Schema of version ${{ matrix.v }}
         run: |
-          mkdir -p out
+          # outside the checkout: switching commits cleans out anything untracked
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"
           for c in ${{ matrix.commits }}; do
             git checkout -f -q "$c" && git clean -fdq
             chmod +x gradlew
@@ -44,17 +45,19 @@ jobs:
             if grep -q "google-services" app/build.gradle.kts && [ ! -f app/google-services.json ]; then
               printf '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"com.familydocs.app"}},"api_key":[{"current_key":"x"}]}],"configuration_version":"1"}' > app/google-services.json
             fi
-            ./gradlew --no-daemon :app:compileDebugKotlin > "build-$c.log" 2>&1 || true
+            ./gradlew --no-daemon :app:compileDebugKotlin > "$RUNNER_TEMP/build-$c.log" 2>&1 || true
             f=$(find app -path '*com.familydocs.app.data.AppDatabase/${{ matrix.v }}.json' | head -1)
-            if [ -n "$f" ]; then cp "$f" out/${{ matrix.v }}.json; echo "version ${{ matrix.v }} from $c"; break; fi
+            if [ -n "$f" ]; then cp "$f" "$out/${{ matrix.v }}.json"; echo "version ${{ matrix.v }} from $c"; break; fi
             echo "== $c: no schema"; find app -name '*.json' -path '*AppDatabase*' | head
             # why, shown on the run page
-            { echo "$c:"; grep -E -A6 'What went wrong|^e: |error:' "build-$c.log" | head -40; tail -15 "build-$c.log"; } > why.txt
-            echo "::warning title=Version ${{ matrix.v }} at $c::$(sed 's/%/%25/g; s/\r//g' why.txt | awk '{printf "%s%%0A", $0}')"
+            { echo "$c:"; grep -E -A6 'What went wrong|^e: |error:' "$RUNNER_TEMP/build-$c.log" | head -40; tail -15 "$RUNNER_TEMP/build-$c.log"; } > "$RUNNER_TEMP/why.txt"
+            echo "::warning title=Version ${{ matrix.v }} at $c::$(sed 's/%/%25/g; s/\r//g' "$RUNNER_TEMP/why.txt" | awk '{printf "%s%%0A", $0}')"
           done
-          test -f out/${{ matrix.v }}.json
+          test -f "$out/${{ matrix.v }}.json"
       - uses: actions/upload-artifact@v4
-        with: { name: "schema-${{ matrix.v }}", path: out/*.json }
+        with:
+          name: schema-${{ matrix.v }}
+          path: ${{ runner.temp }}/out/*.json
 
   commit:
     needs: schema
