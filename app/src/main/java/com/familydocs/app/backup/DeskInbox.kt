@@ -27,6 +27,8 @@ class DeskInbox(private val context: Context, private val repo: VaultRepository,
 
     /** The changes file's Drive id, once a desktop has made one. */
     private val fileId: String? get() = prefs.getString("id", null)
+    /** Whether a desktop's changes file is known here yet (until then it's looked for now and then). */
+    val known: Boolean get() = fileId != null
 
     /** Looks for the desktop's changes file (with Google access); quick when it's already known. */
     suspend fun find(drive: DriveClient, force: Boolean = false) = withContext(Dispatchers.IO) {

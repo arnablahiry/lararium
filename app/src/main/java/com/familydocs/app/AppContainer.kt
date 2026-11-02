@@ -107,6 +107,23 @@ class AppContainer(context: Context) {
         if (!ok) { driveToken = null; BackupWorker.shareNow(app) }
     }
 
+    /**
+     * Looks for the desktop app's changes file (quietly: only when Google access needs no tap), so changes made on a
+     * computer start arriving within a minute of the first one, not at the next background sync.
+     */
+    suspend fun findDesk() {
+        if (desk.known || !settings.value.backupEnabled) return
+        runCatching {
+            val token = driveToken?.takeIf { System.currentTimeMillis() < it.second }?.first ?: run {
+                val auth = backup.authorize()
+                if (auth.hasResolution()) return
+                (auth.accessToken ?: return).also { driveToken = it to System.currentTimeMillis() + 40 * 60_000L }
+            }
+            desk.find(com.familydocs.app.backup.DriveClient(token))
+            if (desk.known) desk.poll()
+        }
+    }
+
     init { startPublishing() }
 
 

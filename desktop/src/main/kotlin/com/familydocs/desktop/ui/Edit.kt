@@ -82,7 +82,7 @@ private fun mimeOf(name: String): String? = when (name.substringAfterLast('.', "
 
 /** The system's Open dialog: scans and PDFs ([images] only: pictures). Several at once when [many]. */
 fun pickFiles(title: String, images: Boolean = false, many: Boolean = false): List<Picked> {
-    val d = java.awt.FileDialog(null as java.awt.Frame?, title, java.awt.FileDialog.LOAD)
+    val d = java.awt.FileDialog(com.familydocs.desktop.MainWindow.frame, title, java.awt.FileDialog.LOAD)
     d.isMultipleMode = many
     d.setFilenameFilter { _, name -> mimeOf(name)?.let { !images || it.startsWith("image/") } == true }
     d.isVisible = true

@@ -207,7 +207,7 @@ private fun open(d: DocumentEntity) {
 private fun save(d: DocumentEntity): String? {
     var n = 0
     d.attachments.forEachIndexed { i, a ->
-        val dialog = java.awt.FileDialog(null as java.awt.Frame?, "Save ${d.name}", java.awt.FileDialog.SAVE)
+        val dialog = java.awt.FileDialog(com.familydocs.desktop.MainWindow.frame, "Save ${d.name}", java.awt.FileDialog.SAVE)
         dialog.file = "${d.name}${if (d.attachments.size > 1) " - ${i + 1}" else ""}.${extension(a.mime)}"
         dialog.isVisible = true
         val dir = dialog.directory ?: return@forEachIndexed; val name = dialog.file ?: return@forEachIndexed

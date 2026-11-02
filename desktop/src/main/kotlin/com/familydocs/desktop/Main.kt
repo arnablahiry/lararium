@@ -162,6 +162,7 @@ fun main() {
         icon = remember { com.familydocs.app.ui.ds.Res.get("app_icon")?.let { androidx.compose.ui.graphics.painter.BitmapPainter(it) } },
         onPreviewKeyEvent = { e -> shortcut(app, e) }) {
         LaunchedEffect(Unit) {
+            MainWindow.frame = window
             window.minimumSize = java.awt.Dimension(960, 640)
             window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
             window.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)

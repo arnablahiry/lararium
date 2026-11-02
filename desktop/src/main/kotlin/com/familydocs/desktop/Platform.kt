@@ -25,6 +25,12 @@ object Platform {
 }
 
 /**
+ * The main window, so the system's Open and Save dialogs open in front of it (with no owner, a Mac can put them
+ * behind the window, where they look like nothing happened).
+ */
+object MainWindow { @Volatile var frame: java.awt.Frame? = null }
+
+/**
  * Where the Google sign-in is kept, never in a plain file: the macOS Keychain on a Mac; on Windows a file only your
  * Windows account can open (Windows' own data protection, DPAPI); on Linux the desktop's keyring (GNOME Keyring or
  * KWallet, through secret-tool), or, without one, a file only you can read.

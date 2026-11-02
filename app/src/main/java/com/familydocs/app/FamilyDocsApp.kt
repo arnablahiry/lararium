@@ -31,6 +31,8 @@ class FamilyDocsApp : Application() {
                     // changes made in the desktop app (one tiny look, once a desktop has made any)
                     if (container.settings.value.backupEnabled) {
                         runCatching { container.desk.poll() }
+                        // no desktop known yet: a quiet look every minute (cheap; stops once one is found)
+                        if (!container.desk.known && round % 12 == 0) container.findDesk()
                         // no shared groups (so no regular sync below): every 5 minutes the background job looks for a new desktop
                         if (container.repo.groupsNow().none { it.peerList.isNotEmpty() } && round++ % 60 == 0)
                             com.familydocs.app.backup.BackupWorker.syncShares(this@FamilyDocsApp)

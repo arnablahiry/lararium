@@ -2,6 +2,10 @@
 # the app shows it once after updating, Settings lists it under "Update" before downloading, and CI puts it in the
 # release notes. One "- " line per change, written for the people using the app.
 
+## 0.9.6
+- Changes made in the computer apps reach the phone sooner the first time (it looks for them every minute while Lararium is open)
+- Computer apps: the Open dialog for adding a scan or photo now always comes up in front of the window; dates are picked on a calendar; Touch ID / Windows Hello unlock
+
 ## 0.9.5
 - The computer apps update themselves: Settings › About shows a new version, downloads it and installs it
 - A document's Archive button has its own line, so its label fits
