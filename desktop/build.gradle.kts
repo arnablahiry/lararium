@@ -19,6 +19,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // showing PDF scans
     implementation("org.apache.pdfbox:pdfbox:3.0.3")
+    // invite QR codes (the same library the phone uses)
+    implementation("com.google.zxing:core:3.5.3")
 }
 
 kotlin { jvmToolchain(17) }
@@ -70,6 +72,7 @@ kotlin.sourceSets.named("main") {
 tasks.processResources {
     from("../app/src/main/res/drawable-nodpi") { into("drawable") }
     from("../app/src/main/res/font") { into("font") }
+    from("../app/src/main/assets/changelog.txt")
     from("icons/app_icon.png") { into("drawable") }
 }
 

@@ -2,6 +2,10 @@
 # the app shows it once after updating, Settings lists it under "Update" before downloading, and CI puts it in the
 # release notes. One "- " line per change, written for the people using the app.
 
+## 0.9.4
+- The computer apps (Mac, Windows, Linux) can now change things too: add and edit documents, people, events and the group's name and picture there, and your phone takes the changes over within seconds while Lararium is open (or the next time you open it), then backs them up and shares them as usual
+- Event pictures show on the computer as soon as you change them on the phone
+
 ## 0.9.3
 - Renewed a passport, licence or insurance? Adding the new one offers to archive the old one. Archived documents stay at the bottom of the vault and in search, but leave the wallet and the expiry reminders (Archive / Unarchive on any document too)
 - Emergency card: add one per person (blood group, allergies, medication, who to call). "Emergency info" on the lock screen shows them without the passcode, so someone helping can read them; everything else stays locked (Settings › Security to turn it off)

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.familydocs.app.data.DocumentEntity
 import com.familydocs.app.data.EventEntity
 import com.familydocs.app.data.MemberEntity
+import com.familydocs.app.domain.Countries
 import com.familydocs.app.domain.Events
 import com.familydocs.app.domain.Expiry
 import com.familydocs.app.ocr.FieldKeys
@@ -134,7 +135,11 @@ fun HomePage(view: GroupView) {
                 }
             }
         }
-        FdSectionTitle("People", Modifier.padding(start = 0.dp))
+        var addingPerson by remember { mutableStateOf(false) }
+        FdSectionTitle("People", Modifier.padding(start = 0.dp)) {
+            com.familydocs.app.ui.ds.FdTextButton("Add a person", { addingPerson = true })
+        }
+        if (addingPerson) PersonEditSheet(view, null, view.group?.id) { addingPerson = false }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalArrangement = Arrangement.spacedBy(26.dp)) {
             view.members.forEach { m ->
                 Column(Modifier.width(150.dp).clip(RoundedCornerShape(20.dp)).clickable { app.go(Page.Person(m.id)) }.padding(vertical = 8.dp),
@@ -153,8 +158,7 @@ fun HomePage(view: GroupView) {
                 upcoming.forEach { e -> EventTile(e) { app.go(Page.Event(e.id)) } }
             }
         }
-        Spacer(Modifier.height(50.dp))
-        FdMadeWith()
+        Spacer(Modifier.height(30.dp))
     }
 }
 
@@ -176,27 +180,43 @@ fun EventTile(e: EventEntity, onClick: () -> Unit) {
 
 enum class VaultLook { CARDS, LIST }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PersonPage(view: GroupView, id: String) {
     val app = rememberApp()
     val c = Fd.c
     val m = view.member(id) ?: run { FdEmpty("This person isn't in this group."); return }
-    val docs = view.docs.filter { it.memberId == id }.sortedWith(compareBy({ it.sortOrder ?: Int.MAX_VALUE }, { it.createdAt }))
+    val all = view.docs.filter { it.memberId == id }.sortedWith(compareBy({ it.sortOrder ?: Int.MAX_VALUE }, { it.createdAt }))
     val archived = view.allDocs.filter { it.memberId == id && it.archived && it.eventId == null }
     var look by remember { mutableStateOf(VaultLook.CARDS) }
     var showArchived by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    // country filter, as on the phone: the pills show when there's more than one country
+    val order = Countries.decode(view.data.account?.countries)
+    val codes = all.map { it.issuer }.filter { it.isNotEmpty() }.distinct().sortedBy { order.indexOf(it).let { i -> if (i < 0) 99 else i } }
+    var hidden by remember(id) { mutableStateOf(setOf<String>()) }
+    val docs = if (codes.size > 1) all.filter { it.issuer !in hidden } else all
+    val canAdd = m.origin == null || view.group?.isAdmin(view.data.me) == true
     PageColumn {
-        PageBar()
+        PageBar {
+            if (view.canEdit(m)) com.familydocs.app.ui.ds.FdButton(if (m.isSelf) "Edit profile" else "Edit", { editing = true }, Modifier.width(150.dp),
+                com.familydocs.app.ui.ds.BtnKind.Ghost, icon = "edit")
+            if (canAdd) com.familydocs.app.ui.ds.FdButton("Add document", { adding = true }, Modifier.width(190.dp), icon = "plus")
+        }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             FdAvatar(m.name, 104.dp, photoFile = m.photoFile, character = m.avatar, shared = m.shared, lift = true)
             Text(m.name, style = fdText(28f), modifier = Modifier.padding(top = 12.dp))
-            Text("${if (m.shared) "Shared" else if (m.isSelf) "You" else m.relation} · ${docs.size} document${if (docs.size == 1) "" else "s"}",
+            Text("${if (m.shared) "Shared" else if (m.isSelf) "You" else m.relation} · ${all.size} document${if (all.size == 1) "" else "s"}",
                 style = fdText(13f, color = c.muted), modifier = Modifier.padding(top = 4.dp))
         }
         FdSectionTitle("Vault", Modifier.padding(start = 0.dp)) {
             FdSegmented(listOf(Triple(VaultLook.CARDS, "card", "Cards"), Triple(VaultLook.LIST, "sliders", "List")), look) { look = it }
         }
-        if (docs.isEmpty()) FdEmpty("No documents yet. Add them on the phone; they show up here.")
+        if (codes.size > 1) FlowRow(Modifier.padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            codes.forEach { code -> CountryPill(code, all.count { it.issuer == code }, code !in hidden) { hidden = if (code in hidden) hidden - code else hidden + code } }
+        }
+        if (docs.isEmpty()) FdEmpty(if (all.isEmpty()) "No documents yet. Add one here or on the phone." else "No documents for the selected countries.")
         else when (look) {
             VaultLook.CARDS -> CardGrid(docs, m.name) { app.go(Page.Doc(it.id)) }
             VaultLook.LIST -> DocList(docs) { app.go(Page.Doc(it.id)) }
@@ -210,13 +230,34 @@ fun PersonPage(view: GroupView, id: String) {
             if (showArchived) Box(Modifier.padding(top = 8.dp).graphicsLayer { alpha = .75f }) { DocList(archived) { app.go(Page.Doc(it.id)) } }
         }
     }
+    if (adding) DocEditSheet(view, null, m.id, onDismiss = { adding = false }, onSaved = { app.go(Page.Doc(it)) })
+    if (editing) PersonEditSheet(view, m, m.groupId) { editing = false }
+}
+
+/** `.cpill`: country filter; off = half transparent with a grey flag. */
+@Composable
+private fun CountryPill(code: String, count: Int, on: Boolean, onClick: () -> Unit) {
+    val c = Fd.c
+    val a by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else .5f, androidx.compose.animation.core.tween(200), label = "pill")
+    val border by androidx.compose.animation.animateColorAsState(if (on) c.primary else c.line, androidx.compose.animation.core.tween(200), label = "pillB")
+    Row(
+        Modifier.graphicsLayer { alpha = a }.clip(RoundedCornerShape(99.dp)).background(if (on) c.mix(c.primary, .08f, c.surface) else c.surface)
+            .border(1.5.dp, border, RoundedCornerShape(99.dp)).clickable(onClick = onClick).padding(start = 11.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        FdFlag(code, 20.dp, greyscale = !on)
+        Text(Countries.short(code), style = fdText(14f, FontWeight.SemiBold, spacing = .02f))
+        Box(Modifier.clip(RoundedCornerShape(99.dp)).background(c.mix(c.fg, .07f, c.surface)).padding(horizontal = 8.dp, vertical = 2.dp),
+            contentAlignment = Alignment.Center) { Text("$count", style = fdText(12f, FontWeight.Medium, c.muted)) }
+    }
 }
 
 /** The wallet as a grid of cards (the phone's cards, laid out side by side). */
 @Composable
 fun CardGrid(docs: List<DocumentEntity>, holder: String, onOpen: (DocumentEntity) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val cols = (maxWidth / 340.dp).toInt().coerceIn(1, 4)
+        // 3 side by side in a window filling the screen (as wide as they read well), fewer as the window gets narrower
+        val cols = ((maxWidth + 18.dp) / 318.dp).toInt().coerceIn(1, 3)
         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             docs.chunked(cols).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -284,9 +325,11 @@ fun EventsPage(view: GroupView) {
     val app = rememberApp()
     val c = Fd.c
     val (now, past) = view.events.partition { Events.isCurrent(it.startDay, it.endDay) }
+    var adding by remember { mutableStateOf(false) }
+    if (adding) EventEditSheet(view, null, onDismiss = { adding = false }, onSaved = { app.go(Page.Event(it)) })
     PageColumn(maxWidth = 900.dp) {
-        PageBar("Events")
-        if (view.events.isEmpty()) FdEmpty("No events yet. Trips, birthdays and appointments you add on the phone show up here.")
+        PageBar("Events") { com.familydocs.app.ui.ds.FdButton("New event", { adding = true }, Modifier.width(170.dp), icon = "plus") }
+        if (view.events.isEmpty()) FdEmpty("No events yet. Trips, birthdays and appointments: add one here or on the phone.")
         if (now.isNotEmpty()) {
             FdSectionTitle("Coming up", Modifier.padding(start = 0.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { now.forEach { e -> EventRow(e) { app.go(Page.Event(e.id)) } } }
@@ -322,8 +365,15 @@ fun EventPage(view: GroupView, id: String) {
     val own = view.data.docs.filter { it.eventId == e.id }
     val others = e.visibleIds.filter { it != view.data.me }.mapNotNull { view.member(it)?.name }
     val organiser = e.organiserKey?.let { k -> view.data.members.firstOrNull { it.origin == k && !it.shared }?.name ?: "another member" }
+    var editing by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
+    if (editing) EventEditSheet(view, e, onDismiss = { editing = false })
+    if (adding) view.data.me?.let { me -> DocEditSheet(view, null, me, eventId = e.id, onDismiss = { adding = false }) }
     PageColumn(maxWidth = 900.dp) {
-        PageBar()
+        PageBar {
+            com.familydocs.app.ui.ds.FdButton("Edit", { editing = true }, Modifier.width(120.dp), com.familydocs.app.ui.ds.BtnKind.Ghost, icon = "edit")
+            com.familydocs.app.ui.ds.FdButton("Add a ticket", { adding = true }, Modifier.width(170.dp), icon = "plus")
+        }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             FdEventPic(e.art, e.photoFile, 120.dp, lift = true)
             Text(e.name, style = fdText(28f), modifier = Modifier.padding(top = 12.dp))
@@ -332,6 +382,9 @@ fun EventPage(view: GroupView, id: String) {
             Text(if (e.visibleIds.isEmpty()) "Visible to everyone in the group" else if (others.isEmpty()) "Only you can see this" else "Visible to you, ${others.joinToString(", ")}",
                 style = fdText(11.5f, color = c.muted), modifier = Modifier.padding(top = 4.dp))
             organiser?.let { Text("Organised by $it", style = fdText(11.5f, color = c.muted), modifier = Modifier.padding(top = 2.dp)) }
+            e.editedBy?.let { k -> view.data.members.firstOrNull { it.origin == k && !it.shared }?.name }?.let {
+                Text("Changed by $it", style = fdText(11.5f, color = c.muted), modifier = Modifier.padding(top = 2.dp))
+            }
         }
         FdSectionTitle("Documents", Modifier.padding(start = 0.dp)) { Text("${pinned.size + own.size}", style = fdText(11f, FontWeight.Medium, c.muted)) }
         if (pinned.isEmpty() && own.isEmpty()) FdEmpty("Tickets, bookings and pinned documents show up here.")

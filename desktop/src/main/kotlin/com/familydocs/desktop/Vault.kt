@@ -58,6 +58,7 @@ object Vault {
         val root = drive.findByProp(P_ROOT, "1") ?: throw NoBackup()
         val keyJson = JSONObject(String(drive.appDataRead(KEY_FILE) ?: throw NoBackup()))
         val key = Base64.getDecoder().decode(keyJson.getString("key"))
+        val salt = Base64.getDecoder().decode(keyJson.getString("id"))
         Files.backupKey = key
         fun open(b: ByteArray) = BackupCrypto.open(b, key)
         val passcode = runCatching { drive.appDataRead(PASSCODE_FILE)?.let { String(open(it)) } }.getOrNull()
@@ -132,7 +133,8 @@ object Vault {
                 val photo = if (j.isNull("photo")) null else ("e-" + j.getString("id")).also { Files.putInline(it, Base64.getDecoder().decode(j.getString("photo"))) }
                 events += EventEntity(id = j.getString("id"), name = j.getString("name"), art = j.optString("art", "trip"), photoFile = photo?.let { "m:$it" },
                     startDay = j.getString("start"), endDay = j.str("end"), people = j.optString("people"), visibleTo = j.optString("visible"),
-                    pins = j.optString("pins"), remindDays = j.optInt("remind", -1), notes = j.optString("notes"), createdAt = j.optLong("created"), groupId = j.str("group"))
+                    pins = j.optString("pins"), remindDays = j.optInt("remind", -1), notes = j.optString("notes"), createdAt = j.optLong("created"), groupId = j.str("group"),
+                    updatedAt = j.optLong("at"))
             }
         }
 
@@ -140,15 +142,31 @@ object Vault {
         val problems = mutableListOf<String>()
         groups.forEach { g ->
             val peers = g.peerList
-            if (peers.isEmpty() || me == null) return@forEach
+            if (me == null || (peers.isEmpty() && g.shareIndex == null)) return@forEach
             val gkey = BackupCrypto.deriveKey(GroupCodes.normalize(g.code).toCharArray(), GroupInvite.salt(g.id))
             Files.groupKeys[g.id] = gkey
             val common = members.firstOrNull { it.shared && it.groupId == g.id }
-            val shares = coroutineScope {
-                peers.map { p -> async(Dispatchers.IO) { p to runCatching { JSONObject(String(BackupCrypto.open(DriveClient.publicDownload(p.index), gkey))) } } }.awaitAll()
+            // (your own share too: the phone puts your changes there within seconds, the backup follows a few minutes later)
+            val (shares, mine) = coroutineScope {
+                val own = async(Dispatchers.IO) { g.shareIndex?.let { runCatching { JSONObject(String(BackupCrypto.open(DriveClient.publicDownload(it), gkey))) }.getOrNull() } }
+                peers.map { p -> async(Dispatchers.IO) { p to runCatching { JSONObject(String(BackupCrypto.open(DriveClient.publicDownload(p.index), gkey))) } } }.awaitAll() to own.await()
             }
             onProgress("Reading ${g.name}…")
             val edits = mutableListOf<JSONObject>()
+            mine?.let { j ->
+                // your events as the phone last shared them: newer than the backup's copy (a new photo, a change just made)
+                j.optJSONArray("events").objs().forEach { ev ->
+                    val i = events.indexOfFirst { it.id == ev.getString("id") }.takeIf { it >= 0 } ?: return@forEach
+                    val old = events[i]
+                    if (ev.optLong("at") < old.updatedAt) return@forEach
+                    fun person(o: JSONObject): String? = personRef(o, me, common?.id, g.id)
+                    val fresh = eventFrom(ev, old.id, g.id, ::person, me)
+                    events[i] = fresh.copy(visibleTo = old.visibleTo, remindDays = old.remindDays, editedBy = null,
+                        photoFile = fresh.photoFile ?: old.photoFile.takeIf { ev.isNull("photo").not() })
+                }
+                // what you changed last in other people's events
+                edits += j.optJSONArray("eventEdits").objs().map { it.put("_peer", me) }
+            }
             shares.forEach { (p, r) ->
                 val j = r.getOrElse { problems += "${p.name.ifBlank { "Someone" }}: ${it.message ?: "couldn't read their share"}"; return@forEach }
                 val prefix = "s:${g.id}:${p.key}:"
@@ -200,6 +218,7 @@ object Vault {
         }
         // documents of events you can't see (anymore) are left out
         val eventIds = events.map { it.id }.toSet()
+        runCatching { Desk.load(drive, root.id, key, salt) }
         VaultData(account, me, members.sortedWith(compareBy({ !it.isSelf }, { it.shared }, { it.createdAt })),
             docs.filter { it.eventId == null || it.eventId in eventIds }, events.sortedBy { it.startDay }, groups, passcode, System.currentTimeMillis(), problems)
     }

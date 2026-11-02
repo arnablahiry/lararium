@@ -28,6 +28,13 @@ class FamilyDocsApp : Application() {
             process.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 var round = 0
                 while (true) {
+                    // changes made in the desktop app (one tiny look, once a desktop has made any)
+                    if (container.settings.value.backupEnabled) {
+                        runCatching { container.desk.poll() }
+                        // no shared groups (so no regular sync below): every 5 minutes the background job looks for a new desktop
+                        if (container.repo.groupsNow().none { it.peerList.isNotEmpty() } && round++ % 60 == 0)
+                            com.familydocs.app.backup.BackupWorker.syncShares(this@FamilyDocsApp)
+                    }
                     if (!container.appLock.locked.value && container.repo.groupsNow().any { it.peerList.isNotEmpty() }) {
                         runCatching { container.share.poll() }.onSuccess { container.checked(it.reachable) }
                         if (container.share.wantsPublish) container.publishSoon() // someone changed one of your events

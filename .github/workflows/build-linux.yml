@@ -15,6 +15,7 @@ on:
       - "app/src/main/java/com/familydocs/app/backup/BackupCrypto.kt"
       - "app/src/main/java/com/familydocs/app/backup/DriveClient.kt"
       - "app/src/main/java/com/familydocs/app/ui/ds/IconPaths.kt"
+      - "app/src/main/assets/changelog.txt"
       - ".github/workflows/build-linux.yml"
   workflow_dispatch:
 

@@ -368,12 +368,12 @@ class DriveBackup(
 
     private fun eventJson(e: com.familydocs.app.data.EventEntity) = JSONObject().put("id", e.id).put("name", e.name).put("art", e.art)
         .put("start", e.startDay).put("end", e.endDay ?: JSONObject.NULL).put("people", e.people).put("visible", e.visibleTo).put("pins", e.pins)
-        .put("remind", e.remindDays).put("notes", e.notes).put("created", e.createdAt).put("group", e.groupId ?: JSONObject.NULL)
+        .put("remind", e.remindDays).put("notes", e.notes).put("created", e.createdAt).put("group", e.groupId ?: JSONObject.NULL).put("at", e.updatedAt)
     private fun eventFromJson(j: JSONObject, photo: String?) = com.familydocs.app.data.EventEntity(
         id = j.getString("id"), name = j.getString("name"), art = j.optString("art", "trip"), photoFile = photo, startDay = j.getString("start"),
         endDay = if (j.isNull("end")) null else j.optString("end"), people = j.optString("people"), visibleTo = j.optString("visible"),
         pins = j.optString("pins"), remindDays = j.optInt("remind", -1), notes = j.optString("notes"), createdAt = j.optLong("created"),
-        groupId = if (!j.has("group") || j.isNull("group")) null else j.getString("group"),
+        groupId = if (!j.has("group") || j.isNull("group")) null else j.getString("group"), updatedAt = j.optLong("at"),
     )
 
     /** Brings back logins a restore found locked with the backup password. Throws when [password] is wrong. Returns how many. */

@@ -55,6 +55,7 @@ import com.familydocs.app.ui.components.rememberVaultImage
 import com.familydocs.app.ui.ds.Fd
 import com.familydocs.app.ui.ds.FdAvatar
 import com.familydocs.app.ui.ds.FdIcon
+import com.familydocs.app.ui.ds.FdIconButton
 import com.familydocs.app.ui.ds.FdInput
 import com.familydocs.app.ui.ds.fdPainter
 import com.familydocs.app.ui.ds.fdText
@@ -95,15 +96,20 @@ fun Shell() {
     Row(Modifier.fillMaxSize().background(c.bg)) {
         Sidebar(view)
         Box(Modifier.width(1.dp).fillMaxHeight().background(c.line))
-        AnimatedContent(app.page, Modifier.weight(1f).fillMaxHeight(), transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) }, label = "page") { p ->
-            when (p) {
-                Page.Home -> HomePage(view)
-                is Page.Person -> PersonPage(view, p.id)
-                is Page.Doc -> DocumentPage(view, p.id)
-                Page.Events -> EventsPage(view)
-                is Page.Event -> EventPage(view, p.id)
-                is Page.Search -> SearchPage(view, p.query)
+        // the page, and "Made with love" always at the bottom of the window
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            AnimatedContent(app.page, Modifier.weight(1f).fillMaxWidth(), transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) }, label = "page") { p ->
+                when (p) {
+                    Page.Home -> HomePage(view)
+                    is Page.Person -> PersonPage(view, p.id)
+                    is Page.Doc -> DocumentPage(view, p.id)
+                    Page.Events -> EventsPage(view)
+                    is Page.Event -> EventPage(view, p.id)
+                    is Page.Search -> SearchPage(view, p.query)
+                    Page.Settings -> SettingsPage(view)
+                }
             }
+            com.familydocs.app.ui.ds.FdMadeWith(Modifier.padding(top = 8.dp, bottom = 12.dp))
         }
     }
 }
@@ -171,6 +177,7 @@ private fun GroupSwitcher(view: GroupView) {
     val c = Fd.c
     val groups = view.data.groups
     var open by remember { mutableStateOf(false) }
+    var prefs by remember { mutableStateOf(false) }
     val g = view.group ?: return
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(4.dp)) {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(enabled = groups.size > 1) { open = !open }.padding(8.dp),
@@ -181,6 +188,7 @@ private fun GroupSwitcher(view: GroupView) {
                 Text("${view.members.size} ${if (view.members.size == 1) "person" else "people"} · ${view.docs.size} documents", style = fdText(11.5f, color = c.muted))
             }
             if (groups.size > 1) FdIcon("chev", 15.dp, tint = c.muted)
+            FdIconButton("sliders", { prefs = true }, size = 32.dp, iconSize = 17.dp, tint = c.muted, description = "Family preferences")
         }
         if (open) groups.filter { it.id != g.id }.forEach { o ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { open = false; app.selectGroup(o.id) }.padding(8.dp),
@@ -190,6 +198,7 @@ private fun GroupSwitcher(view: GroupView) {
             }
         }
     }
+    if (prefs) FamilySheet(view) { prefs = false }
 }
 
 @Composable
@@ -200,7 +209,7 @@ fun GroupPic(g: GroupEntity, size: Int) {
     else Image(fdPainter("art_group_default"), g.name, m, contentScale = ContentScale.Crop)
 }
 
-/** You, when it was last read from Drive (refresh), lock, theme and sign out. */
+/** You, when it was last read from Drive (refresh), lock, theme and settings (signing out is in there). */
 @Composable
 private fun Footer() {
     val app = rememberApp()
@@ -228,6 +237,8 @@ private fun Footer() {
                 else -> "Up to date · ${ago / 3600} h ago"
             }, style = fdText(11.5f, color = if (app.error != null) c.danger else c.muted), modifier = Modifier.weight(1f))
         }
+        if (app.waiting > 0) Text(if (app.waiting == 1) "1 change on its way to your phone" else "${app.waiting} changes on their way to your phone",
+            style = fdText(10.5f, color = c.muted), modifier = Modifier.padding(top = 4.dp))
         if (data.problems.isNotEmpty()) Text(data.problems.joinToString("\n"), style = fdText(10.5f, color = c.muted), modifier = Modifier.padding(top = 4.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             FooterButton("refresh", "Update now (${com.familydocs.desktop.Platform.mod}R)") { app.load() }
@@ -236,7 +247,7 @@ private fun Footer() {
                 app.chooseTheme(when (app.theme) { Theme.SYSTEM -> if (c.dark) Theme.LIGHT else Theme.DARK; Theme.LIGHT -> Theme.DARK; Theme.DARK -> Theme.LIGHT })
             }
             Spacer(Modifier.weight(1f))
-            FooterButton("logout", "Sign out") { app.signOut() }
+            FooterButton("gear", "Settings (${com.familydocs.desktop.Platform.mod},)") { app.go(Page.Settings) }
         }
     }
 }

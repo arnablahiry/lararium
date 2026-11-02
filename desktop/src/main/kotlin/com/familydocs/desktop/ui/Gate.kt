@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,9 +102,29 @@ fun SignInPage() {
             }
             Text("This first version shows everything; to add or change things, use the phone.", style = fdText(12f, color = c.muted),
                 textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
-            Spacer(Modifier.height(30.dp))
-            FdMadeWith()
         }
+    }
+}
+
+/** Emergency cards, readable without the passcode (Settings › Security). */
+@Composable
+private fun EmergencySheet(cards: List<com.familydocs.app.data.DocumentEntity>, people: List<com.familydocs.app.data.MemberEntity>, onDismiss: () -> Unit) {
+    val c = Fd.c
+    com.familydocs.app.ui.ds.FdSheet(onDismiss) {
+        com.familydocs.app.ui.ds.SheetTitle("Emergency info", "What's on the emergency cards in this vault.")
+        Column(Modifier.heightIn(max = 480.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            cards.forEach { d ->
+                Column(Modifier.fillMaxWidth().background(c.surface2, androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(14.dp)) {
+                    Text(people.firstOrNull { it.id == d.memberId }?.name ?: d.name, style = fdText(15f, FontWeight.Bold))
+                    d.fields.filter { it.value.isNotBlank() }.forEach { f ->
+                        Text(f.label, style = fdText(11f, color = c.muted), modifier = Modifier.padding(top = 8.dp))
+                        Text(f.value, style = fdText(14.5f, FontWeight.SemiBold))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        FdButton("Close", onDismiss)
     }
 }
 
@@ -120,6 +142,9 @@ fun LockPage() {
     var sub by remember { mutableStateOf("Enter your passcode") }
     var success by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
+    var wrong by remember { mutableIntStateOf(0) }
+    var emergency by remember { mutableStateOf(false) }
+    val cards = data?.docs.orEmpty().filter { com.familydocs.app.domain.DocTypes.forName(it.name).key == "emergency" && !it.archived && it.eventId == null }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
@@ -131,7 +156,7 @@ fun LockPage() {
             delay(120)
             when (val r = withContext(Dispatchers.Default) { pass.check(pin) }) {
                 Passcode.Check.Ok -> { success = true; delay(700); app.unlocked() }
-                is Passcode.Check.Wrong -> { shake++; pin = ""; sub = "Wrong passcode · ${r.left} tries left" }
+                is Passcode.Check.Wrong -> { shake++; wrong++; pin = ""; sub = "Wrong passcode · ${r.left} tries left" }
                 is Passcode.Check.Wait -> { shake++; pin = ""; sub = "Too many tries. Wait ${(r.ms + 999) / 1000} s" }
             }
             checking = false
@@ -159,10 +184,14 @@ fun LockPage() {
             FdDots(pass.length, pin.length, shake, success)
             Spacer(Modifier.height(34.dp))
             FdKeypad(onDigit = ::digit, onDelete = { if (!success) pin = pin.dropLast(1) })
-            Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Type it, or click the keys", style = fdText(12f, color = c.muted))
-                FdTextButton("Sign out", { app.signOut() }, color = c.muted)
+            if (emergency) EmergencySheet(cards, data?.members.orEmpty()) { emergency = false; focus.requestFocus() }
+            Text("Type it, or click the keys", style = fdText(12f, color = c.muted), modifier = Modifier.padding(top = 18.dp))
+            if (app.emergencyOnLock && cards.isNotEmpty()) Box(Modifier.padding(top = 14.dp)) {
+                com.familydocs.app.ui.ds.FdChip("Emergency info", false, { emergency = true },
+                    leading = { com.familydocs.app.ui.ds.FdIcon("medical", 15.dp, tint = c.danger) })
             }
+            // forgot it: signing out (and in again) is the way back; offered only after a few wrong tries
+            if (wrong >= 3) Box(Modifier.padding(top = 6.dp)) { FdTextButton("Forgot it? Sign out", { app.signOut() }, color = c.muted) }
         }
     }
 }

@@ -22,15 +22,24 @@ class BackupWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         val shareOnly = inputData.getBoolean(SHARE_ONLY, false)
         val backup = c.settings.value.backupEnabled && !shareOnly
         val sharing = c.repo.groupsNow().any { it.shareIndex != null || it.peerList.isNotEmpty() }
-        if (!backup && !sharing) return Result.success()
+        // the desktop app reads your backup, so its changes only come in while backups are on
+        val desk = c.settings.value.backupEnabled
+        if (!backup && !sharing && !desk) return Result.success()
         val auth = runCatching { c.backup.authorize() }.getOrElse { return Result.retry() }
         if (auth.hasResolution()) return Result.success() // needs the user; Settings shows "Back up now"
         val token = auth.accessToken ?: return Result.retry()
+        // Changes made in the desktop app: taken over first, so this backup and share already carry them.
+        if (desk) runCatching { c.desk.find(DriveClient(token)); c.desk.poll() }
         // Shared groups: publish your share and read everyone else's (a failure here never fails the backup).
         if (sharing) runCatching { c.share.sync(token) }
         if (!backup) return Result.success()
+        val started = System.currentTimeMillis()
         return runCatching { c.backup.backup(token, c.settings.value.viewableCopies) }
-            .onSuccess { c.settings.update { s -> s.copy(lastBackup = System.currentTimeMillis()) } }
+            .onSuccess {
+                c.settings.update { s -> s.copy(lastBackup = System.currentTimeMillis()) }
+                // the desktop's changes are in Drive now: it can stop showing them as its own
+                runCatching { c.desk.ack(DriveClient(token), started) }
+            }
             .fold({ Result.success() }, { Result.retry() })
     }
 
@@ -75,6 +84,14 @@ class BackupWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
                 .setInputData(androidx.work.workDataOf(SHARE_ONLY to true))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
             WorkManager.getInstance(context).enqueueUniqueWork("$NAME-share-now", androidx.work.ExistingWorkPolicy.REPLACE, req)
+        }
+
+        /** Desktop changes were just taken over: backed up shortly (sooner than [soon]), so the desktop sees them confirmed. */
+        fun afterDesk(context: Context) {
+            val req = androidx.work.OneTimeWorkRequestBuilder<BackupWorker>()
+                .setInitialDelay(15, TimeUnit.SECONDS)
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
+            WorkManager.getInstance(context).enqueueUniqueWork("$NAME-desk", androidx.work.ExistingWorkPolicy.REPLACE, req)
         }
 
         fun soon(context: Context) {

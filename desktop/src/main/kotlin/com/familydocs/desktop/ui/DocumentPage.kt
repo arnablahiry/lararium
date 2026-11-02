@@ -86,6 +86,9 @@ fun DocumentPage(view: GroupView, id: String) {
         value = withContext(Dispatchers.IO) { d.attachments.flatMap { a -> Files.get(a.id)?.let { pagesOf(a, it) }.orEmpty() } }
     }
     var zoom by remember { mutableStateOf<Int?>(null) }
+    var editing by remember { mutableStateOf(false) }
+    val app = com.familydocs.desktop.rememberApp()
+    val editable = view.canEdit(d)
     val filled = d.fields.filter { it.value.isNotBlank() }
     val scroll = rememberScrollState()
 
@@ -148,7 +151,12 @@ fun DocumentPage(view: GroupView, id: String) {
                             Text(if (sharedBy != null) "Shared by $sharedBy" else "Added ${fmtDate(d.createdAt)} · ${if (d.readByOcr) "details read from the file" else "entered by hand"}",
                                 style = fdText(11.5f, color = c.muted))
                         }
-                        if (d.attachments.isNotEmpty()) Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (editable) Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FdButton("Edit", { editing = true }, Modifier.weight(1f), icon = "edit")
+                            if (d.eventId == null) FdButton(if (d.archived) "Back to the wallet" else "Archive", { app.setArchived(toast, d, !d.archived) }, Modifier.weight(1f),
+                                BtnKind.Ghost, icon = "archive", enabled = !app.saving)
+                        }
+                        if (d.attachments.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             FdButton(com.familydocs.desktop.Platform.openLabel, { open(d) }, Modifier.weight(1f), BtnKind.Ghost, icon = "eye")
                             FdButton("Save a copy…", { save(d)?.let { toast.show(it) } }, Modifier.weight(1f), BtnKind.Ghost, icon = "download")
                         }
@@ -158,6 +166,8 @@ fun DocumentPage(view: GroupView, id: String) {
         }
         VerticalScrollbar(rememberScrollbarAdapter(scroll), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(vertical = 6.dp))
     }
+
+    if (editing) DocEditSheet(view, d, d.memberId, d.eventId, onDismiss = { editing = false })
 
     // the page, as big as the window allows
     zoom?.let { i ->

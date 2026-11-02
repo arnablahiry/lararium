@@ -56,6 +56,8 @@ class AppContainer(context: Context) {
     val backup: DriveBackup by lazy { DriveBackup(app, repo, files, BackupKeyStore(app, crypto), passcode, loginLock) }
     /** Groups shared between accounts (encrypted shares in each member's Drive). */
     val share: com.familydocs.app.backup.GroupShare by lazy { com.familydocs.app.backup.GroupShare(app, db.dao(), files, crypto) }
+    /** Changes made in the desktop app, taken over here. */
+    val desk: com.familydocs.app.backup.DeskInbox by lazy { com.familydocs.app.backup.DeskInbox(app, repo, db.dao(), files, backup.keys) }
 
     // ---- your changes reach the group within a second: shared right here (the background job is only the fallback) ----
     private val publishRequests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1,
@@ -133,6 +135,7 @@ class AppContainer(context: Context) {
         runCatching { google.signOut() }
         backup.keys.clear()
         backup.forgetManifest() // the next backup (on any account) checks everything again
+        desk.forget()
         repo.wipe()
         settings.reset()
         repo.groupId.value = null

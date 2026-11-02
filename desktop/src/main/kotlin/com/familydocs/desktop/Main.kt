@@ -3,6 +3,7 @@ package com.familydocs.desktop
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +46,7 @@ sealed interface Page {
     data object Events : Page
     data class Event(val id: String) : Page
     data class Search(val query: String) : Page
+    data object Settings : Page
 }
 
 enum class Theme { SYSTEM, LIGHT, DARK }
@@ -57,7 +59,12 @@ class AppModel(private val scope: CoroutineScope) {
     var stage by mutableStateOf(if (!Google.configured) Stage.SETUP else if (Google.hasSession()) Stage.LOADING else Stage.SIGN_IN)
     var progress by mutableStateOf("")
     var error by mutableStateOf<String?>(null)
-    var data by mutableStateOf<VaultData?>(null)
+    /** The vault as read from Drive, and as shown: with your changes here that the phone hasn't taken over yet. */
+    var base by mutableStateOf<VaultData?>(null); private set
+    var data by mutableStateOf<VaultData?>(null); private set
+    /** How many of your changes here are still on their way to the phone. */
+    var waiting by mutableStateOf(0); private set
+    var saving by mutableStateOf(false); private set
     var refreshing by mutableStateOf(false)
     var email by mutableStateOf(prefs.get("email", ""))
     var passcode: Passcode? = null
@@ -65,6 +72,12 @@ class AppModel(private val scope: CoroutineScope) {
         private set
     var group by mutableStateOf<String?>(prefs.get("group", null))
         private set
+    /** Lock again after this many minutes away (0 = only when you lock it). */
+    var lockAfterMin by mutableStateOf(prefs.getInt("lock_after", 5)); private set
+    fun chooseLockAfter(m: Int) { lockAfterMin = m; prefs.putInt("lock_after", m) }
+    /** Emergency cards readable from the lock screen, as on the phone. */
+    var emergencyOnLock by mutableStateOf(prefs.getBoolean("emergency_lock", true)); private set
+    fun chooseEmergencyOnLock(on: Boolean) { emergencyOnLock = on; prefs.putBoolean("emergency_lock", on) }
     val stack = mutableStateListOf<Page>(Page.Home)
     val page: Page get() = stack.last()
     /** When the window was last left (for locking after a while away). */
@@ -92,7 +105,7 @@ class AppModel(private val scope: CoroutineScope) {
         refreshing = true
         runCatching { Vault.load { progress = it } }
             .onSuccess { d ->
-                data = d
+                base = d; shown()
                 if (group == null || d.groups.none { it.id == group }) d.groups.firstOrNull()?.let { group = it.id }
                 if (first) { passcode = Passcode.parse(d.passcode); stage = if (passcode != null) Stage.LOCKED else Stage.READY }
                 error = null
@@ -104,11 +117,25 @@ class AppModel(private val scope: CoroutineScope) {
         refreshing = false
     }
 
+    private fun shown() { val b = base ?: return; data = Desk.overlay(b); waiting = Desk.pending.size }
+
+    /**
+     * A change made here: shown at once, then sent to the phone (which takes it over within seconds while Lararium is
+     * open there, or the next time it is). [done] runs after it's on its way, with a problem to show if it isn't.
+     */
+    fun edit(build: suspend () -> org.json.JSONObject, done: (String?) -> Unit = {}) = scope.launch {
+        saving = true
+        val r = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Desk.push(build()) } }
+        saving = false
+        shown()
+        done(r.exceptionOrNull()?.let { "Couldn't save: ${it.message ?: "no connection"}" })
+    }
+
     fun lock() { if (passcode != null && stage == Stage.READY) stage = Stage.LOCKED }
     fun unlocked() { stage = Stage.READY; awaySince = 0L }
 
     fun signOut() {
-        Google.signOut(); Files.clear(); data = null; passcode = null; email = ""; prefs.remove("email")
+        Google.signOut(); Files.clear(); Desk.forget(); base = null; data = null; waiting = 0; passcode = null; email = ""; prefs.remove("email")
         stack.clear(); stack += Page.Home; stage = Stage.SIGN_IN
     }
 }
@@ -121,7 +148,9 @@ fun main() {
     System.setProperty("apple.awt.application.name", "Lararium")
     val app = AppModel(kotlinx.coroutines.MainScope())
     application {
-    val state = rememberWindowState(width = 1240.dp, height = 820.dp, position = WindowPosition.PlatformDefault)
+    // opens filling the screen (not full screen): every page is laid out for any size you then make the window
+    val state = rememberWindowState(placement = androidx.compose.ui.window.WindowPlacement.Maximized, width = 1440.dp, height = 900.dp,
+        position = WindowPosition.PlatformDefault)
     Window(onCloseRequest = ::exitApplication, title = "Lararium", state = state,
         icon = remember { com.familydocs.app.ui.ds.Res.get("app_icon")?.let { androidx.compose.ui.graphics.painter.BitmapPainter(it) } },
         onPreviewKeyEvent = { e -> shortcut(app, e) }) {
@@ -137,13 +166,20 @@ fun main() {
                 override fun windowLostFocus(e: java.awt.event.WindowEvent?) { app.awaySince = System.currentTimeMillis() }
                 override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {
                     val away = app.awaySince
-                    if (away > 0 && System.currentTimeMillis() - away > 5 * 60_000L) app.lock()
+                    if (away > 0 && app.lockAfterMin > 0 && System.currentTimeMillis() - away > app.lockAfterMin * 60_000L) app.lock()
                     if (away > 0 && System.currentTimeMillis() - away > 60_000L && app.stage == AppModel.Stage.READY) app.load()
                     app.awaySince = 0L
                 }
             })
             if (app.stage == AppModel.Stage.LOADING) app.load(first = true)
-            while (true) { delay(3 * 60_000L); if (app.stage == AppModel.Stage.READY && window.isFocused) app.load() }
+            // every few minutes; every half minute while changes made here are on their way to the phone
+            var n = 0
+            while (true) {
+                delay(20_000L); n++
+                if (app.stage != AppModel.Stage.READY) continue
+                if (app.waiting > 0 && runCatching { Desk.anyDone() }.getOrDefault(false)) app.load()
+                else if (n % 9 == 0 && window.isFocused) app.load()
+            }
         }
         val dark = when (app.theme) { Theme.SYSTEM -> isSystemInDarkTheme(); Theme.LIGHT -> false; Theme.DARK -> true }
         val toast = remember { FdToastState() }
@@ -160,6 +196,8 @@ fun main() {
                         AppModel.Stage.LOCKED -> LockPage()
                         AppModel.Stage.READY -> Shell()
                     }
+                    // "Made with love" at the bottom of the window on every page (the main window has its own)
+                    if (app.stage != AppModel.Stage.READY) com.familydocs.app.ui.ds.FdMadeWith(Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 14.dp))
                     FdToastHost(toast)
                 }
             }
@@ -175,6 +213,7 @@ private fun shortcut(app: AppModel, e: KeyEvent): Boolean {
         Platform.shortcut(e) && e.key == Key.R -> { app.load(); true }
         Platform.shortcut(e) && e.key == Key.L -> { app.lock(); true }
         Platform.shortcut(e) && e.key == Key.F -> { app.focusSearch?.invoke(); true }
+        Platform.shortcut(e) && e.key == Key.Comma -> { app.go(Page.Settings); true }
         e.key == Key.Escape && app.stack.size > 1 -> { app.back(); true }
         else -> false
     }
