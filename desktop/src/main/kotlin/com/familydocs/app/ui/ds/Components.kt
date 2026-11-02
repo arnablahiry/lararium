@@ -362,6 +362,7 @@ fun FdProgress(modifier: Modifier = Modifier) {
  * `.sheet`, desktop version: the same card (28px corners, surface colour, grab handle) over the same dark scrim, centred
  * in the window. Click outside or press Esc to close.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class) // the dialog's own scrim off: this sheet draws its own, animated
 @Composable
 fun FdSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val c = Fd.c
