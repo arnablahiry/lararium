@@ -87,6 +87,8 @@ compose.desktop {
             copyright = "Arnab Lahiry"
             vendor = "Arnab Lahiry"
             includeAllModules = true
+            // the Touch ID helper on the Mac (resources/macos, built on CI) and anything common to all
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
             windows {
                 menuGroup = "Lararium"
                 // the same id for every version, so a new installer replaces the old one

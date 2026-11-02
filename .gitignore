@@ -11,3 +11,6 @@ captures/
 keystore.properties
 *.jks
 *.keystore
+
+# built on CI from desktop/native/touchid.swift
+desktop/resources/macos/

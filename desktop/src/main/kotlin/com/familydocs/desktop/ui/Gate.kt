@@ -145,10 +145,23 @@ fun LockPage() {
     var wrong by remember { mutableIntStateOf(0) }
     var emergency by remember { mutableStateOf(false) }
     var flash by remember { mutableStateOf<com.familydocs.app.ui.ds.KeyFlash?>(null) }
-    fun lightUp(k: String) { flash = com.familydocs.app.ui.ds.KeyFlash(k, (flash?.serial ?: 0) + 1) }
-    val cards = data?.docs.orEmpty().filter { com.familydocs.app.domain.DocTypes.forName(it.name).key == "emergency" && !it.archived && it.eventId == null }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    // the fingerprint reader, when there is one: asked for straight away, and with the key next to 0
+    val bio = app.biometricOn && app.biometricHere
+    var asking by remember { mutableStateOf(false) }
+    fun fingerprint() {
+        if (asking || success) return
+        asking = true
+        scope.launch {
+            val ok = com.familydocs.desktop.Biometric.verify()
+            asking = false
+            if (ok) { success = true; pin = "•".repeat(pass.length); delay(600); app.unlocked() } else focus.requestFocus()
+        }
+    }
+    LaunchedEffect(bio) { if (bio) { delay(350); fingerprint() } }
+    fun lightUp(k: String) { flash = com.familydocs.app.ui.ds.KeyFlash(k, (flash?.serial ?: 0) + 1) }
+    val cards = data?.docs.orEmpty().filter { com.familydocs.app.domain.DocTypes.forName(it.name).key == "emergency" && !it.archived && it.eventId == null }
 
     fun digit(d: Char) {
         if (success || checking || pin.length >= pass.length || pass.lockedFor() > 0) return
@@ -185,9 +198,10 @@ fun LockPage() {
             Spacer(Modifier.height(24.dp))
             FdDots(pass.length, pin.length, shake, success)
             Spacer(Modifier.height(34.dp))
-            FdKeypad(onDigit = ::digit, onDelete = { if (!success) pin = pin.dropLast(1) }, flash = flash)
+            FdKeypad(onDigit = ::digit, onDelete = { if (!success) pin = pin.dropLast(1) }, onBiometric = if (bio) ({ fingerprint() }) else null, flash = flash)
             if (emergency) EmergencySheet(cards, data?.members.orEmpty()) { emergency = false; focus.requestFocus() }
-            Text("Type it, or click the keys", style = fdText(12f, color = c.muted), modifier = Modifier.padding(top = 18.dp))
+            Text(if (bio) "Type it, click the keys, or use ${com.familydocs.desktop.Biometric.label}" else "Type it, or click the keys", style = fdText(12f, color = c.muted),
+                modifier = Modifier.padding(top = 18.dp))
             if (app.emergencyOnLock && cards.isNotEmpty()) Box(Modifier.padding(top = 14.dp)) {
                 com.familydocs.app.ui.ds.FdChip("Emergency info", false, { emergency = true },
                     leading = { com.familydocs.app.ui.ds.FdIcon("medical", 15.dp, tint = c.danger) })

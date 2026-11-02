@@ -120,6 +120,9 @@ fun SettingsPage(view: GroupView) {
                 }
             }
             FdListItem("Lock now", "${Platform.mod}L", icon = "lock", onClick = if (app.passcode != null) ({ app.lock() }) else null)
+            if (app.biometricHere) Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                SwitchRow("Unlock with ${com.familydocs.desktop.Biometric.label}", "The passcode still works as well", app.biometricOn) { app.chooseBiometric(it) }
+            }
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                 SwitchRow("Emergency info on the lock screen", "Emergency cards (blood group, allergies, who to call) readable without the passcode",
                     app.emergencyOnLock) { app.chooseEmergencyOnLock(it) }

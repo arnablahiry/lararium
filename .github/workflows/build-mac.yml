@@ -29,6 +29,10 @@ jobs:
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: "17" }
       - uses: gradle/actions/setup-gradle@v6
+      - name: Build the Touch ID helper
+        run: |
+          mkdir -p desktop/resources/macos
+          swiftc -O desktop/native/touchid.swift -o desktop/resources/macos/Lararium
       - name: Build the .dmg
         env:
           MAC_GOOGLE_CLIENT_ID: ${{ secrets.MAC_GOOGLE_CLIENT_ID }}

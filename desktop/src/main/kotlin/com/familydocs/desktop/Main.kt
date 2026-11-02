@@ -78,6 +78,12 @@ class AppModel(private val scope: CoroutineScope) {
     /** Emergency cards readable from the lock screen, as on the phone. */
     var emergencyOnLock by mutableStateOf(prefs.getBoolean("emergency_lock", true)); private set
     fun chooseEmergencyOnLock(on: Boolean) { emergencyOnLock = on; prefs.putBoolean("emergency_lock", on) }
+    /** Unlock with the computer's fingerprint reader (Touch ID, Windows Hello…) when it has one. */
+    var biometricOn by mutableStateOf(prefs.getBoolean("biometric", true)); private set
+    fun chooseBiometric(on: Boolean) { biometricOn = on; prefs.putBoolean("biometric", on) }
+    /** Whether this computer has one (checked once, at start). */
+    var biometricHere by mutableStateOf(false); private set
+    fun checkBiometric() = scope.launch { biometricHere = runCatching { Biometric.available() }.getOrDefault(false) }
     val stack = mutableStateListOf<Page>(Page.Home)
     val page: Page get() = stack.last()
     /** When the window was last left (for locking after a while away). */
@@ -172,6 +178,7 @@ fun main() {
                     app.awaySince = 0L
                 }
             })
+            app.checkBiometric()
             if (app.stage == AppModel.Stage.LOADING) app.load(first = true)
             // a newer version of this app: Settings › About shows it (checked again every 6 hours)
             launch { while (true) { Updater.check(); delay(6 * 3600_000L) } }
