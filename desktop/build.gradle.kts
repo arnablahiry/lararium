@@ -77,7 +77,7 @@ compose.desktop {
     application {
         mainClass = "com.familydocs.desktop.MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm)
             packageName = "Lararium"
             packageVersion = macVersion
             description = "Your family's documents, from your Lararium vault"
@@ -92,6 +92,14 @@ compose.desktop {
                 shortcut = true
                 dirChooser = false
                 iconFile.set(project.file("icons/Lararium.ico"))
+            }
+            linux {
+                packageName = "lararium"
+                debMaintainer = "Arnab Lahiry <arnablahiry08@gmail.com>"
+                menuGroup = "Office"
+                appCategory = "Office"
+                shortcut = true
+                iconFile.set(project.file("icons/Lararium.png"))
             }
             macOS {
                 bundleID = "com.familydocs.mac"
