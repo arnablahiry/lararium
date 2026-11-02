@@ -376,19 +376,20 @@ fun FdSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) 
     val scrim = if (c.dark) Color(0xFF000000).copy(alpha = .62f * p) else Color(0xFF1B2233).copy(alpha = .34f * p)
     androidx.compose.ui.window.Dialog(onDismissRequest = { leaving = true },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, scrimColor = Color.Transparent)) {
-        Box(Modifier.fillMaxSize().background(scrim).tap(role = Role.Button) { leaving = true }, contentAlignment = Alignment.Center) {
-            Column(
+        // the dim behind the card: a click on it closes, but it never lights up under the mouse
+        Box(Modifier.fillMaxSize().background(scrim).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { leaving = true },
+            contentAlignment = Alignment.Center) {
+            Box(
                 Modifier.widthIn(max = 460.dp).fillMaxWidth(.9f)
                     .graphicsLayer { alpha = p; val k = .94f + .06f * p; scaleX = k; scaleY = k; translationY = (1f - p) * 18.dp.toPx() }
                     .shadow(28.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(c.surface)
                     .border(1.dp, if (c.dark) c.line else Color.Transparent, RoundedCornerShape(28.dp))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                    .padding(start = 24.dp, end = 24.dp, bottom = 22.dp),
             ) {
-                Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 14.dp), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(36.dp, 4.dp).clip(RoundedCornerShape(4.dp)).background(c.line))
-                }
-                content()
+                Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 22.dp), content = content)
+                // a close button (this is a window on a computer, not a sheet to swipe down)
+                FdIconButton("close", { leaving = true }, Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 12.dp), size = 34.dp, iconSize = 16.dp,
+                    tint = c.muted, description = "Close (Esc)")
             }
         }
     }
@@ -396,7 +397,7 @@ fun FdSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) 
 
 @Composable
 fun SheetTitle(title: String, text: String? = null) {
-    Text(title, style = fdText(18f, FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
+    Text(title, style = fdText(18f, FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp, end = 30.dp))
     if (text != null) Text(text, style = fdText(13f, color = Fd.c.muted), modifier = Modifier.padding(bottom = 16.dp))
 }
 
