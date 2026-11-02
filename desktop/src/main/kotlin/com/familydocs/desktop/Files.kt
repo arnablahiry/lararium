@@ -44,7 +44,7 @@ object Files {
         synchronized(bytes) { bytes[id] }?.let { return it }
         val data = runCatching {
             when {
-                id.startsWith("b:") -> BackupCrypto.open(drive!!.download(id.removePrefix("b:")), backupKey!!)
+                id.startsWith("b:") -> BackupCrypto.open(drive!!.download(id.removePrefix("b:").substringBefore('#')), backupKey!!)
                 // a picture or scan uploaded from this computer, waiting for the phone (after a restart of the app)
                 id.startsWith("m:u-") -> BackupCrypto.open(drive!!.download(id.removePrefix("m:u-")), backupKey!!)
                 id.startsWith("s:") -> {

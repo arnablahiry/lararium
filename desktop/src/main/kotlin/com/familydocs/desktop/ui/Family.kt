@@ -110,16 +110,13 @@ fun FamilySheet(view: GroupView, onDismiss: () -> Unit) {
                     app.save(toast, "Saved", build = { DeskOps.op(DeskOps.GROUP).put("group", JSONObject().put("id", g.id).put("name", name.trim())) }, close = {})
                 }, Modifier.width(92.dp), kind = BtnKind.Ghost, enabled = name.isNotBlank() && name.trim() != g.name && !app.saving)
             }
-            Row(Modifier.padding(top = 10.dp, bottom = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FdChip("Choose a photo…", false, {
-                    pickPhoto("Choose the group's picture") { toast.show(it) }?.let { bytes ->
-                        app.save(toast, "Picture changed", build = {
-                            DeskOps.op(DeskOps.GROUP).put("group", JSONObject().put("id", g.id)).put("photo", Desk.upload(bytes))
-                        }, close = {})
-                    }
-                }, leading = { FdIcon("image", 15.dp, tint = c.fg) })
-                if (g.photoFile != null) FdChip("Use the illustration", false, {
-                    app.save(toast, "Picture changed", build = { DeskOps.op(DeskOps.GROUP).put("group", JSONObject().put("id", g.id)).put("photo", JSONObject.NULL) }, close = {})
+            Box(Modifier.padding(top = 10.dp, bottom = 18.dp)) {
+                PhotoActions("The group's picture", g.photoFile, hasPhoto = g.photoFile != null, onPhoto = { bytes ->
+                    app.save(toast, "Picture changed", build = {
+                        DeskOps.op(DeskOps.GROUP).put("group", JSONObject().put("id", g.id)).put("photo", Desk.upload(bytes))
+                    }, close = {})
+                }, onRemove = {
+                    app.save(toast, "Back to the illustration", build = { DeskOps.op(DeskOps.GROUP).put("group", JSONObject().put("id", g.id)).put("photo", JSONObject.NULL) }, close = {})
                 })
             }
 

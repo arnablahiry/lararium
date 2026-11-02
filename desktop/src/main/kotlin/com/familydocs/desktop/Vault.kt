@@ -68,13 +68,13 @@ object Vault {
 
         val account = index.optJSONObject("account")?.let { a ->
             AccountEntity(name = a.getString("name"), countryCode = a.optString("cc"), phone = a.optString("phone"), backupEmail = a.optString("email"),
-                photoFile = rootChildren.firstOrNull { it.props[P_KIND] == "account-photo" }?.let { "b:" + it.id }, googleLinked = true,
+                photoFile = rootChildren.firstOrNull { it.props[P_KIND] == "account-photo" }?.let { ref(it) }, googleLinked = true,
                 countries = a.optString("countries", "IN,GR"))
         }
         val groups = index.optJSONArray("groups").objs().map { g ->
             GroupEntity(g.getString("id"), g.getString("name"), g.getString("code"), g.optLong("created"), backupAll = g.optBoolean("all"),
                 shareFolder = g.str("shareFolder"), shareIndex = g.str("shareIndex"), peers = g.str("peers"), pic = g.str("pic"),
-                photoFile = if (g.optBoolean("photo")) drive.findByProp(P_DOC_FILE, "group:${g.getString("id")}:photo")?.let { "b:" + it.id } else null,
+                photoFile = if (g.optBoolean("photo")) drive.findByProp(P_DOC_FILE, "group:${g.getString("id")}:photo")?.let { ref(it) } else null,
                 creator = g.str("creator"), admins = g.str("admins"), adminsAt = g.optLong("adminsAt"))
         }
         val order = index.optJSONArray("documents").objs().filter { !it.isNull("order") }.associate { it.getString("id") to it.getInt("order") }
@@ -91,7 +91,7 @@ object Vault {
                     val id = mj.getString("id")
                     val folder = gate.withPermit { rootChildren.firstOrNull { it.props[P_MEMBER] == id } ?: drive.findByProp(P_MEMBER, id) }
                     val inside = folder?.let { f -> gate.withPermit { drive.children(f.id) } }.orEmpty()
-                    val m = MemberEntity(id, mj.getString("name"), mj.optString("relation"), inside.firstOrNull { it.props[P_KIND] == "photo" }?.let { "b:" + it.id },
+                    val m = MemberEntity(id, mj.getString("name"), mj.optString("relation"), inside.firstOrNull { it.props[P_KIND] == "photo" }?.let { ref(it) },
                         mj.optBoolean("self"), mj.optLong("created"), mj.optBoolean("shared"), mj.str("avatar"), groupId = mj.str("group"))
                     synchronized(members) { members += m }
                     inside.filter { it.mime == DriveClient.FOLDER && it.props[P_DOC] != null }.map { df ->
@@ -104,13 +104,13 @@ object Vault {
                                     if (dj.str("origin") != null) return@runCatching // a member's document: read from their share
                                     val mimes = dj.optJSONArray("more")
                                     val more = parts.filter { it.props[P_KIND] == "extra" }.sortedBy { it.props["n"]?.toIntOrNull() ?: 0 }.mapIndexed { n, f ->
-                                        Attachment("b:" + f.id, mimes?.optString(n)?.takeIf { it.isNotEmpty() } ?: if (f.props["ext"] == "pdf") "application/pdf" else "image/jpeg")
+                                        Attachment(ref(f), mimes?.optString(n)?.takeIf { it.isNotEmpty() } ?: if (f.props["ext"] == "pdf") "application/pdf" else "image/jpeg")
                                     }
                                     docs += DocumentEntity(
                                         id = dj.getString("id"), memberId = dj.getString("member"), name = dj.getString("name"),
-                                        fileId = parts.firstOrNull { it.props[P_KIND] == "original" }?.let { "b:" + it.id }, fileMime = dj.str("mime"),
+                                        fileId = parts.firstOrNull { it.props[P_KIND] == "original" }?.let { ref(it) }, fileMime = dj.str("mime"),
                                         display = runCatching { DisplayMode.valueOf(dj.getString("display")) }.getOrDefault(DisplayMode.ICON),
-                                        pictureFile = parts.firstOrNull { it.props[P_KIND] == "picture" }?.let { "b:" + it.id },
+                                        pictureFile = parts.firstOrNull { it.props[P_KIND] == "picture" }?.let { ref(it) },
                                         fieldsJson = dj.optString("fields", "[]"), rawText = dj.optString("text"), readByOcr = dj.optBoolean("ocr"),
                                         country = dj.str("country"), createdAt = dj.optLong("created"), updatedAt = dj.optLong("updated"),
                                         eventId = dj.str("event"), showFlag = if (!dj.has("flag") || dj.isNull("flag")) null else dj.getBoolean("flag"),
@@ -130,7 +130,10 @@ object Vault {
         val events = mutableListOf<EventEntity>()
         rootChildren.firstOrNull { it.props[P_KIND] == "events" }?.let { f ->
             JSONArray(String(open(drive.download(f.id)))).objs().filter { !it.getString("id").startsWith("s:") }.forEach { j ->
-                val photo = if (j.isNull("photo")) null else ("e-" + j.getString("id")).also { Files.putInline(it, Base64.getDecoder().decode(j.getString("photo"))) }
+                // (named by its contents: a new picture is a new name, so it shows instead of the remembered one)
+                val photo = if (j.isNull("photo")) null else Base64.getDecoder().decode(j.getString("photo")).let { b ->
+                    ("e-" + j.getString("id") + "-" + Integer.toHexString(b.contentHashCode())).also { Files.putInline(it, b) }
+                }
                 events += EventEntity(id = j.getString("id"), name = j.getString("name"), art = j.optString("art", "trip"), photoFile = photo?.let { "m:$it" },
                     startDay = j.getString("start"), endDay = j.str("end"), people = j.optString("people"), visibleTo = j.optString("visible"),
                     pins = j.optString("pins"), remindDays = j.optInt("remind", -1), notes = j.optString("notes"), createdAt = j.optLong("created"), groupId = j.str("group"),
@@ -244,6 +247,12 @@ object Vault {
         pins = ev.optJSONArray("pins").objs().mapNotNull { r -> val k = r.optString("k"); if (k.isEmpty()) null else if (k == me) r.optString("id") else "s:$gid:$k:${r.optString("id")}" }.joinToString(","),
         notes = ev.optString("notes"), createdAt = ev.optLong("created"), groupId = gid, updatedAt = ev.optLong("at"), editedBy = ev.str("by"),
     )
+
+    /**
+     * How a file in your backup is named here: its Drive id and a bit of its checksum, so a picture changed on the
+     * phone (written over the same Drive file) is a new name, and the old one isn't shown from memory.
+     */
+    private fun ref(f: DriveClient.Item) = "b:" + f.id + if (f.md5.isNotEmpty()) "#" + f.md5.take(10) else ""
 
     private fun JSONArray?.objs(): List<JSONObject> = this?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } }.orEmpty()
     private fun JSONObject.str(k: String): String? = if (!has(k) || isNull(k)) null else optString(k).ifEmpty { null }

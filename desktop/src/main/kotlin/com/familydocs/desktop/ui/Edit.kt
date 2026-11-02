@@ -361,8 +361,8 @@ fun PersonEditSheet(view: GroupView, member: MemberEntity?, groupId: String?, on
             if (img != null) Image(img, null, Modifier.size(84.dp).clip(CircleShape), contentScale = ContentScale.Crop)
             else FdAvatar(name, 84.dp, photoFile = member?.photoFile?.takeIf { !removePhoto }, character = avatar, shared = member?.shared == true)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FdChip("Choose a photo…", false, { pickPhoto("Choose a photo") { toast.show(it) }?.let { photo = NewPhoto(it); removePhoto = false } }, leading = { FdIcon("image", 15.dp, tint = c.fg) })
-                if (photo != null || (member?.photoFile != null && !removePhoto)) FdChip("Remove photo", false, { photo = null; removePhoto = true })
+                PhotoActions("Their photo", member?.photoFile?.takeIf { !removePhoto }, hasPhoto = photo != null || (member?.photoFile != null && !removePhoto),
+                    onPhoto = { photo = NewPhoto(it); removePhoto = false }, onRemove = { photo = null; removePhoto = true })
             }
         }
         if (member?.shared != true) FdField("Or a character") {
@@ -436,8 +436,8 @@ fun EventEditSheet(view: GroupView, event: EventEntity?, onDismiss: () -> Unit, 
             if (img != null) Image(img, null, Modifier.size(84.dp).clip(CircleShape), contentScale = ContentScale.Crop)
             else FdEventPic(art, event?.photoFile?.takeIf { !removePhoto }, 84.dp)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FdChip("Choose a photo…", false, { pickPhoto("Choose the event's picture") { toast.show(it) }?.let { photo = NewPhoto(it); removePhoto = false } }, leading = { FdIcon("image", 15.dp, tint = c.fg) })
-                if (photo != null || (event?.photoFile != null && !removePhoto)) FdChip("Remove photo", false, { photo = null; removePhoto = true })
+                PhotoActions("The event's picture", event?.photoFile?.takeIf { !removePhoto }, hasPhoto = photo != null || (event?.photoFile != null && !removePhoto),
+                    onPhoto = { photo = NewPhoto(it); removePhoto = false }, onRemove = { photo = null; removePhoto = true })
             }
         }
         FdField("Name") { FdInput(name, { name = it; if (!artTouched) art = Events.artFor(it) }, placeholder = "Lisbon trip, Lily's birthday…") }

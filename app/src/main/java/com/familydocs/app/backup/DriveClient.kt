@@ -12,7 +12,9 @@ import java.util.concurrent.TimeUnit
 
 /** Minimal Google Drive v3 REST client (scope drive.file: the app only ever sees files it created). */
 class DriveClient(private val token: String) {
-    data class Item(val id: String, val name: String, val mime: String, val props: Map<String, String>, val parents: List<String> = emptyList())
+    data class Item(val id: String, val name: String, val mime: String, val props: Map<String, String>, val parents: List<String> = emptyList(),
+                    /** The contents' checksum (files only): changes when a file is overwritten in place. */
+                    val md5: String = "")
 
     // one client for the whole app: connections to Drive stay open between syncs (no new handshake every time)
     private val http get() = SHARED
@@ -27,14 +29,15 @@ class DriveClient(private val token: String) {
     private fun parse(o: JSONObject): Item {
         val p = o.optJSONObject("appProperties")
         val parents = o.optJSONArray("parents")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
-        return Item(o.getString("id"), o.optString("name"), o.optString("mimeType"), p?.keys()?.asSequence()?.associateWith { p.getString(it) } ?: emptyMap(), parents)
+        return Item(o.getString("id"), o.optString("name"), o.optString("mimeType"), p?.keys()?.asSequence()?.associateWith { p.getString(it) } ?: emptyMap(), parents,
+            o.optString("md5Checksum"))
     }
 
     fun list(q: String, space: String = "drive"): List<Item> {
         val out = mutableListOf<Item>()
         var page: String? = null
         do {
-            val url = "$FILES?spaces=$space&pageSize=1000&fields=nextPageToken,files(id,name,mimeType,appProperties,parents)&q=" +
+            val url = "$FILES?spaces=$space&pageSize=1000&fields=nextPageToken,files(id,name,mimeType,appProperties,parents,md5Checksum)&q=" +
                 URLEncoder.encode("$q and trashed = false", "UTF-8") + (page?.let { "&pageToken=$it" } ?: "")
             val j = JSONObject(call(Request.Builder().url(url)))
             val arr = j.getJSONArray("files")
