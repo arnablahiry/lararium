@@ -17,9 +17,9 @@ import java.util.Base64
 
 /**
  * Signing in with the same Google account as the phone, the way Google wants desktop apps to: the browser opens Google's
- * own page, and the answer comes back to a one-off address on this Mac (127.0.0.1). The app only gets the same access
+ * own page, and the answer comes back to a one-off address on this computer (127.0.0.1). The app only gets the same access
  * the phone has (its own Lararium files and hidden app folder in Drive), nothing else in your Drive. The long-lived
- * sign-in is kept in the macOS Keychain, never in a file.
+ * sign-in is kept by [Keychain] (the macOS Keychain, or Windows data protection).
  */
 object Google {
     private val SCOPES = listOf(
@@ -100,20 +100,4 @@ object Google {
         }
 
     private fun b64(b: ByteArray) = Base64.getUrlEncoder().withoutPadding().encodeToString(b)
-}
-
-/** The sign-in, kept in the macOS Keychain ("Lararium" item), through the system's own `security` tool. */
-object Keychain {
-    private const val SERVICE = "Lararium Google sign-in"
-    private const val ACCOUNT = "lararium"
-
-    private fun run(vararg args: String): Pair<Int, String> = runCatching {
-        val p = ProcessBuilder(listOf("/usr/bin/security") + args).redirectErrorStream(false).start()
-        val out = p.inputStream.bufferedReader().readText().trim()
-        p.waitFor() to out
-    }.getOrDefault(1 to "")
-
-    fun read(): String? = run("find-generic-password", "-s", SERVICE, "-a", ACCOUNT, "-w").takeIf { it.first == 0 }?.second?.takeIf { it.isNotEmpty() }
-    fun write(token: String) { run("add-generic-password", "-U", "-s", SERVICE, "-a", ACCOUNT, "-w", token) }
-    fun delete() { run("delete-generic-password", "-s", SERVICE, "-a", ACCOUNT) }
 }

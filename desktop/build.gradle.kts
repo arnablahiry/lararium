@@ -77,13 +77,22 @@ compose.desktop {
     application {
         mainClass = "com.familydocs.desktop.MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi)
             packageName = "Lararium"
             packageVersion = macVersion
             description = "Your family's documents, from your Lararium vault"
             copyright = "Arnab Lahiry"
             vendor = "Arnab Lahiry"
             includeAllModules = true
+            windows {
+                menuGroup = "Lararium"
+                // the same id for every version, so a new installer replaces the old one
+                upgradeUuid = "6f1c9b8e-4d2a-4b7e-9a51-3c8e2f0d7a14"
+                perUserInstall = true
+                shortcut = true
+                dirChooser = false
+                iconFile.set(project.file("icons/Lararium.ico"))
+            }
             macOS {
                 bundleID = "com.familydocs.mac"
                 dockName = "Lararium"

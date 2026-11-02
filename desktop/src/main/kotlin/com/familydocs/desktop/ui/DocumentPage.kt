@@ -94,7 +94,7 @@ fun DocumentPage(view: GroupView, id: String) {
             Column(Modifier.widthIn(max = 1100.dp).fillMaxWidth()) {
                 PageBar(d.name) {
                     if (d.attachments.isNotEmpty()) {
-                        FdIconButton("eye", { open(d) }, size = 38.dp, iconSize = 19.dp, description = "Open in Preview")
+                        FdIconButton("eye", { open(d) }, size = 38.dp, iconSize = 19.dp, description = com.familydocs.desktop.Platform.openLabel)
                         FdIconButton("download", { save(d)?.let { toast.show(it) } }, size = 38.dp, iconSize = 19.dp, description = "Save a copy…")
                     }
                 }
@@ -149,7 +149,7 @@ fun DocumentPage(view: GroupView, id: String) {
                                 style = fdText(11.5f, color = c.muted))
                         }
                         if (d.attachments.isNotEmpty()) Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            FdButton("Open in Preview", { open(d) }, Modifier.weight(1f), BtnKind.Ghost, icon = "eye")
+                            FdButton(com.familydocs.desktop.Platform.openLabel, { open(d) }, Modifier.weight(1f), BtnKind.Ghost, icon = "eye")
                             FdButton("Save a copy…", { save(d)?.let { toast.show(it) } }, Modifier.weight(1f), BtnKind.Ghost, icon = "download")
                         }
                     }

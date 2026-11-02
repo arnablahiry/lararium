@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
@@ -169,13 +168,13 @@ fun main() {
     }
 }
 
-/** ⌘R refresh, ⌘L lock, ⌘F search, Esc back. */
+/** ⌘R / Ctrl+R refresh, ⌘L lock, ⌘F search, Esc back. */
 private fun shortcut(app: AppModel, e: KeyEvent): Boolean {
     if (e.type != KeyEventType.KeyDown || app.stage != AppModel.Stage.READY) return false
     return when {
-        e.isMetaPressed && e.key == Key.R -> { app.load(); true }
-        e.isMetaPressed && e.key == Key.L -> { app.lock(); true }
-        e.isMetaPressed && e.key == Key.F -> { app.focusSearch?.invoke(); true }
+        Platform.shortcut(e) && e.key == Key.R -> { app.load(); true }
+        Platform.shortcut(e) && e.key == Key.L -> { app.lock(); true }
+        Platform.shortcut(e) && e.key == Key.F -> { app.focusSearch?.invoke(); true }
         e.key == Key.Escape && app.stack.size > 1 -> { app.back(); true }
         else -> false
     }

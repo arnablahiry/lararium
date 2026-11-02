@@ -86,7 +86,7 @@ fun SignInPage() {
     Box(Modifier.fillMaxSize().background(c.bg), contentAlignment = Alignment.Center) {
         Column(Modifier.widthIn(max = 440.dp).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Wordmark(40f)
-            Text("Your family's documents, on your Mac", style = fdText(15f, color = c.muted), modifier = Modifier.padding(top = 10.dp))
+            Text("Your family's documents, on your ${com.familydocs.desktop.Platform.device}", style = fdText(15f, color = c.muted), modifier = Modifier.padding(top = 10.dp))
             Column(Modifier.padding(top = 30.dp).fillMaxWidth().background(c.surface, androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
                 .border(1.dp, c.line, androidx.compose.foundation.shape.RoundedCornerShape(22.dp)).padding(22.dp)) {
                 Text("Sign in with the Google account your phone backs up to.", style = fdText(14f, FontWeight.SemiBold))

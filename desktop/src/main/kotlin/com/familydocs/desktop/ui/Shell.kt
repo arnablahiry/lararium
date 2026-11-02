@@ -123,13 +123,13 @@ private fun Sidebar(view: GroupView) {
     }
     Column(Modifier.width(272.dp).fillMaxHeight().background(c.surface.copy(alpha = if (c.dark) .55f else .7f))) {
         // room for the window's traffic lights
-        Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(com.familydocs.desktop.Platform.topInset.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
             Box(Modifier.padding(start = 6.dp, bottom = 14.dp)) { Wordmark(28f) }
             GroupSwitcher(view)
             FdInput(query, { query = it }, Modifier.padding(top = 12.dp).focusRequester(focus).onKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && e.key == Key.Escape && query.isNotEmpty()) { query = ""; true } else false
-            }, placeholder = "Search  ⌘F", icon = "search")
+            }, placeholder = "Search  ${com.familydocs.desktop.Platform.mod}F", icon = "search")
             Spacer(Modifier.height(14.dp))
             NavRow("house", "Home", app.page == Page.Home) { query = ""; app.home() }
             NavRow("calendar", "Events", app.page == Page.Events || app.page is Page.Event, badge = view.events.count { com.familydocs.app.domain.Events.isCurrent(it.startDay, it.endDay) }.takeIf { it > 0 }?.toString()) {
@@ -230,8 +230,8 @@ private fun Footer() {
         }
         if (data.problems.isNotEmpty()) Text(data.problems.joinToString("\n"), style = fdText(10.5f, color = c.muted), modifier = Modifier.padding(top = 4.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            FooterButton("refresh", "Update now (⌘R)") { app.load() }
-            FooterButton("lock", "Lock (⌘L)", enabled = app.passcode != null) { app.lock() }
+            FooterButton("refresh", "Update now (${com.familydocs.desktop.Platform.mod}R)") { app.load() }
+            FooterButton("lock", "Lock (${com.familydocs.desktop.Platform.mod}L)", enabled = app.passcode != null) { app.lock() }
             FooterButton(if (c.dark) "sun" else "moon", "Light / dark") {
                 app.chooseTheme(when (app.theme) { Theme.SYSTEM -> if (c.dark) Theme.LIGHT else Theme.DARK; Theme.LIGHT -> Theme.DARK; Theme.DARK -> Theme.LIGHT })
             }
