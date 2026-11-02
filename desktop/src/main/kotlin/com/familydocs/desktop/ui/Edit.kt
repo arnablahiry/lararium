@@ -1,6 +1,7 @@
 package com.familydocs.desktop.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -80,18 +82,34 @@ private fun mimeOf(name: String): String? = when (name.substringAfterLast('.', "
     "pdf" -> "application/pdf"; "png" -> "image/png"; "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> null
 }
 
-/** The system's Open dialog: scans and PDFs ([images] only: pictures). Several at once when [many]. */
-fun pickFiles(title: String, images: Boolean = false, many: Boolean = false): List<Picked> {
+/**
+ * The system's Open dialog: scans and PDFs ([images] only: pictures). Several at once when [many]. Anything that can't
+ * be used is said through [onProblem] (never silently dropped).
+ */
+fun pickFiles(title: String, images: Boolean = false, many: Boolean = false, onProblem: (String) -> Unit = {}): List<Picked> {
     val d = java.awt.FileDialog(com.familydocs.desktop.MainWindow.frame, title, java.awt.FileDialog.LOAD)
     d.isMultipleMode = many
-    d.setFilenameFilter { _, name -> mimeOf(name)?.let { !images || it.startsWith("image/") } == true }
     d.isVisible = true
-    return d.files.orEmpty().mapNotNull { f ->
-        val mime = mimeOf(f.name) ?: return@mapNotNull null
-        if (images && !mime.startsWith("image/")) return@mapNotNull null
-        runCatching { Picked(f.readBytes(), mime, f.name) }.getOrNull()
+    val problems = mutableListOf<String>()
+    val out = d.files.orEmpty().mapNotNull { f ->
+        val mime = mimeOf(f.name)
+        when {
+            mime == null -> { problems += if (f.name.lowercase().endsWith(".heic")) "${f.name}: HEIC photos can't be read here yet (export it as JPEG)" else "${f.name}: not a photo or PDF"; null }
+            images && !mime.startsWith("image/") -> { problems += "${f.name}: not a photo"; null }
+            else -> runCatching { Picked(f.readBytes(), mime, f.name) }
+                .onFailure { problems += "${f.name}: couldn't be read (${it.message ?: "no access"})" }.getOrNull()
+        }
     }
+    if (problems.isNotEmpty()) onProblem(problems.joinToString("\n"))
+    return out
 }
+
+/** What a picked file looks like: the photo, or a PDF's first page. */
+fun previewOf(p: Picked, maxPx: Int = 500): ImageBitmap? = runCatching {
+    if (p.mime == "application/pdf") org.apache.pdfbox.Loader.loadPDF(p.bytes).use { pdf ->
+        org.apache.pdfbox.rendering.PDFRenderer(pdf).renderImageWithDPI(0, 60f).toComposeImageBitmap()
+    } else decodeScaled(p.bytes, maxPx)
+}.getOrNull()
 
 /** A round picture (people, groups, events): the middle square, [out] pixels, as JPEG, like the phone's cropper makes. */
 fun squarePhoto(bytes: ByteArray, out: Int = 700): ByteArray? = runCatching {
@@ -105,7 +123,8 @@ fun squarePhoto(bytes: ByteArray, out: Int = 700): ByteArray? = runCatching {
 }.getOrNull()
 
 /** Picks a picture and makes it round-ready; null when cancelled or unreadable. */
-fun pickPhoto(title: String): ByteArray? = pickFiles(title, images = true).firstOrNull()?.let { squarePhoto(it.bytes) }
+fun pickPhoto(title: String, onProblem: (String) -> Unit = {}): ByteArray? =
+    pickFiles(title, images = true, onProblem = onProblem).firstOrNull()?.let { squarePhoto(it.bytes) ?: run { onProblem("${it.name}: couldn't be opened as a photo"); null } }
 
 /** A picture chosen here, shown before it's saved. */
 class NewPhoto(val bytes: ByteArray) { val image: ImageBitmap? = decodeScaled(bytes, 400) }
@@ -115,12 +134,13 @@ class NewPhoto(val bytes: ByteArray) { val image: ImageBitmap? = decodeScaled(by
 /** A sheet with a title, a scrolling form and Save / Cancel; Delete too when [onDelete]. */
 @Composable
 fun EditSheet(title: String, text: String?, onDismiss: () -> Unit, onSave: () -> Unit, saveLabel: String = "Save", canSave: Boolean = true,
-              onDelete: (() -> Unit)? = null, deleteLabel: String = "Delete", content: @Composable ColumnScope.() -> Unit) {
+              onDelete: (() -> Unit)? = null, deleteLabel: String = "Delete", missing: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val app = rememberApp()
     FdSheet(onDismiss) {
         SheetTitle(title, text)
         Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
         Spacer(Modifier.height(18.dp))
+        if (!canSave && missing != null) Text(missing, style = fdText(12.5f, FontWeight.Medium, Fd.c.danger), modifier = Modifier.padding(bottom = 8.dp))
         FdButton(if (app.saving) "Saving…" else saveLabel, onSave, enabled = canSave && !app.saving)
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -166,6 +186,10 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
     EditSheet(if (doc == null) (if (eventId != null) "Add to the event" else "Add a document") else "Edit ${doc.name}",
         if (doc == null) "Pick the scan or PDF and fill in what matters. Your phone takes it over (and backs it up) within seconds while Lararium is open there." else null,
         onDismiss, canSave = name.isNotBlank() && (doc != null || files?.isNotEmpty() == true || fields.any { it.second.isNotBlank() }),
+        missing = when {
+            name.isBlank() -> "Give it a name (or pick one of the suggestions) to save it"
+            else -> "Choose the scan or PDF, or fill in a detail, to save it"
+        },
         onDelete = doc?.let { { deleting = true } },
         onSave = {
             app.save(toast, if (doc == null) "Added" else "Saved", build = {
@@ -185,12 +209,36 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
         }
         // ---- the file ----
         FdField(if (doc == null) "Scan or PDF" else "File", hint = when {
-            files != null -> files!!.joinToString(", ") { it.name } + " · replaces what's there now"
+            files != null -> files!!.joinToString(", ") { it.name } + if (doc?.attachments?.isNotEmpty() == true) " · replaces what's there now" else ""
             doc?.attachments?.isNotEmpty() == true -> "${doc.attachments.size} page${if (doc.attachments.size == 1) "" else "s"} saved"
             else -> "Photos (JPG, PNG) or a PDF; several for several pages"
         }) {
-            FdButton(if (files == null && doc?.attachments.isNullOrEmpty()) "Choose files…" else "Choose other files…",
-                { pickFiles("Choose the scan or PDF", many = true).takeIf { it.isNotEmpty() }?.let { files = it } }, kind = BtnKind.Ghost, icon = "upload")
+            // what you picked, so it's clear it worked
+            files?.takeIf { it.isNotEmpty() }?.let { list ->
+                Row(Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    list.take(4).forEach { f ->
+                        val img = remember(f) { previewOf(f) }
+                        Box(Modifier.size(width = 96.dp, height = 120.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .background(c.surface2).border(1.dp, c.line, androidx.compose.foundation.shape.RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                            if (img != null) Image(img, f.name, Modifier.size(width = 96.dp, height = 120.dp), contentScale = ContentScale.Crop)
+                            else FdIcon("file", 28.dp, tint = c.muted)
+                        }
+                    }
+                    if (list.size > 4) Text("+${list.size - 4}", style = fdText(13f, FontWeight.SemiBold, c.muted), modifier = Modifier.align(Alignment.CenterVertically))
+                }
+            }
+            FdButton(if (files == null && doc?.attachments.isNullOrEmpty()) "Choose files…" else "Choose other files…", {
+                pickFiles("Choose the scan or PDF", many = true, onProblem = { toast.show(it) }).takeIf { it.isNotEmpty() }?.let { picked ->
+                    files = picked
+                    // no name yet: the type it looks like, else the file's own name
+                    if (name.isBlank()) {
+                        val base = picked.first().name.substringBeforeLast('.').replace('_', ' ').replace('-', ' ').trim()
+                        val t = DocTypes.forName(base)
+                        name = if (t.matched) t.label else base.replaceFirstChar { it.uppercase() }
+                        template(name)
+                    }
+                }
+            }, kind = BtnKind.Ghost, icon = "upload")
         }
         // ---- country ----
         val mine = Countries.decode(view.data.account?.countries)
@@ -282,7 +330,7 @@ fun PersonEditSheet(view: GroupView, member: MemberEntity?, groupId: String?, on
             if (img != null) Image(img, null, Modifier.size(84.dp).clip(CircleShape), contentScale = ContentScale.Crop)
             else FdAvatar(name, 84.dp, photoFile = member?.photoFile?.takeIf { !removePhoto }, character = avatar, shared = member?.shared == true)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FdChip("Choose a photo…", false, { pickPhoto("Choose a photo")?.let { photo = NewPhoto(it); removePhoto = false } }, leading = { FdIcon("image", 15.dp, tint = c.fg) })
+                FdChip("Choose a photo…", false, { pickPhoto("Choose a photo") { toast.show(it) }?.let { photo = NewPhoto(it); removePhoto = false } }, leading = { FdIcon("image", 15.dp, tint = c.fg) })
                 if (photo != null || (member?.photoFile != null && !removePhoto)) FdChip("Remove photo", false, { photo = null; removePhoto = true })
             }
         }
@@ -357,7 +405,7 @@ fun EventEditSheet(view: GroupView, event: EventEntity?, onDismiss: () -> Unit, 
             if (img != null) Image(img, null, Modifier.size(84.dp).clip(CircleShape), contentScale = ContentScale.Crop)
             else FdEventPic(art, event?.photoFile?.takeIf { !removePhoto }, 84.dp)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FdChip("Choose a photo…", false, { pickPhoto("Choose the event's picture")?.let { photo = NewPhoto(it); removePhoto = false } }, leading = { FdIcon("image", 15.dp, tint = c.fg) })
+                FdChip("Choose a photo…", false, { pickPhoto("Choose the event's picture") { toast.show(it) }?.let { photo = NewPhoto(it); removePhoto = false } }, leading = { FdIcon("image", 15.dp, tint = c.fg) })
                 if (photo != null || (event?.photoFile != null && !removePhoto)) FdChip("Remove photo", false, { photo = null; removePhoto = true })
             }
         }

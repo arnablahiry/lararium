@@ -111,6 +111,16 @@ compose.desktop {
                 dockName = "Lararium"
                 iconFile.set(project.file("icons/Lararium.icns"))
                 appCategory = "public.app-category.productivity"
+                // reading a scan you pick from Documents, Desktop, Downloads or a USB stick: macOS asks once, with these words
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>NSDocumentsFolderUsageDescription</key><string>Lararium reads the scans and photos you choose to add to your vault.</string>
+                        <key>NSDesktopFolderUsageDescription</key><string>Lararium reads the scans and photos you choose to add to your vault.</string>
+                        <key>NSDownloadsFolderUsageDescription</key><string>Lararium reads the scans and photos you choose, and saves updates there.</string>
+                        <key>NSRemovableVolumesUsageDescription</key><string>Lararium reads the scans and photos you choose to add to your vault.</string>
+                        <key>NSNetworkVolumesUsageDescription</key><string>Lararium reads the scans and photos you choose to add to your vault.</string>
+                    """
+                }
             }
         }
         buildTypes.release.proguard { isEnabled.set(false) }

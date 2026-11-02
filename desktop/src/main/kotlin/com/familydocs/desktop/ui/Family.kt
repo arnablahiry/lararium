@@ -112,7 +112,7 @@ fun FamilySheet(view: GroupView, onDismiss: () -> Unit) {
             }
             Row(Modifier.padding(top = 10.dp, bottom = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FdChip("Choose a photo…", false, {
-                    pickPhoto("Choose the group's picture")?.let { bytes ->
+                    pickPhoto("Choose the group's picture") { toast.show(it) }?.let { bytes ->
                         app.save(toast, "Picture changed", build = {
                             DeskOps.op(DeskOps.GROUP).put("group", JSONObject().put("id", g.id)).put("photo", Desk.upload(bytes))
                         }, close = {})
