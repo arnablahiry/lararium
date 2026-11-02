@@ -102,10 +102,12 @@ fun Shell() {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             // page changes: the new page fades and settles in, and a picture on both pages (a person, an event) travels across
             androidx.compose.animation.SharedTransitionLayout(Modifier.weight(1f).fillMaxWidth()) {
+                // the new page fades in on top while the old one stays put underneath (no moment where both are see-through,
+                // which showed as a blink), then the old one goes
                 AnimatedContent(app.page, Modifier.fillMaxSize(), transitionSpec = {
-                    (fadeIn(tween(340, delayMillis = 40, easing = com.familydocs.app.ui.ds.FdEase)) +
-                        androidx.compose.animation.scaleIn(tween(380, easing = com.familydocs.app.ui.ds.FdEase), initialScale = .985f)) togetherWith
-                        fadeOut(tween(160))
+                    (fadeIn(tween(300, easing = com.familydocs.app.ui.ds.FdEase)) +
+                        androidx.compose.animation.scaleIn(tween(360, easing = com.familydocs.app.ui.ds.FdEase), initialScale = .99f)) togetherWith
+                        fadeOut(tween(120, delayMillis = 260))
                 }, label = "page") { p ->
                     CompositionLocalProvider(LocalPageMotion provides PageMotion(this@SharedTransitionLayout, this@AnimatedContent)) {
                         when (p) {

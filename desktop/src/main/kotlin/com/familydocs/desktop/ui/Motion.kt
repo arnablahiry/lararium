@@ -36,11 +36,20 @@ fun Modifier.shared(key: String): Modifier {
     }
 }
 
-/** Comes in like a card being dealt: fades up and settles, one after another ([index]). */
+/** What has been dealt in already this session ([appear]'s keys): coming back to it, it's simply there. */
+private val dealt = java.util.Collections.synchronizedSet(HashSet<String>())
+
+/**
+ * Comes in like a card being dealt: fades up and settles, one after another ([index]). With a [key], only the first
+ * time it's shown (coming back from a document, the cards are already on the table: no blink under the picture that
+ * travels back).
+ */
 @Composable
-fun Modifier.appear(index: Int): Modifier {
-    val a = remember { Animatable(0f) }
+fun Modifier.appear(index: Int, key: String? = null): Modifier {
+    val first = remember { key == null || dealt.add(key) }
+    val a = remember { Animatable(if (first) 0f else 1f) }
     LaunchedEffect(Unit) {
+        if (a.value >= 1f) return@LaunchedEffect
         delay(80L + minOf(index, 14) * 45L)
         a.animateTo(1f, tween(420, easing = FdEase))
     }

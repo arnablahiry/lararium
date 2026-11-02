@@ -140,11 +140,12 @@ fun HomePage(view: GroupView) {
             com.familydocs.app.ui.ds.FdTextButton("Add a person", { addingPerson = true })
         }
         if (addingPerson) PersonEditSheet(view, null, view.group?.id) { addingPerson = false }
-        // big faces, up to 5 side by side
-        Grid(view.members, minCell = 176.dp, maxCols = 5, gap = 24.dp) { i, m, cell ->
-            Column(Modifier.fillMaxWidth().appear(i).clip(RoundedCornerShape(22.dp)).clickable { app.go(Page.Person(m.id)) }.padding(vertical = 10.dp),
+        // big faces, up to 4 side by side
+        Grid(view.members, minCell = 190.dp, maxCols = 4, gap = 24.dp) { i, m, cell ->
+            // (no dealing-in here: these pictures travel to the next page, and a fading tile under them made them blink)
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).clickable { app.go(Page.Person(m.id)) }.padding(vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
-                FdAvatar(m.name, minOf(cell * .82f, 172.dp), Modifier.shared("person-${m.id}"), photoFile = m.photoFile, character = m.avatar, shared = m.shared, lift = true)
+                FdAvatar(m.name, minOf(cell * .78f, 190.dp), Modifier.shared("person-${m.id}"), photoFile = m.photoFile, character = m.avatar, shared = m.shared, lift = true)
                 Text(m.name, style = fdText(17f, FontWeight.SemiBold), modifier = Modifier.padding(top = 14.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val n = view.count(m.id)
                 Text("${if (m.shared) "Shared" else if (m.isSelf) "You" else m.relation} · $n doc${if (n == 1) "" else "s"}", style = fdText(12.5f, color = c.muted))
@@ -178,14 +179,15 @@ fun <T> Grid(items: List<T>, minCell: Dp, maxCols: Int, gap: Dp, item: @Composab
 /** Events as cards: a big picture (smaller than people's), what and when under it. */
 @Composable
 fun EventGrid(events: List<EventEntity>, onOpen: (EventEntity) -> Unit) {
-    Grid(events, minCell = 220.dp, maxCols = 4, gap = 18.dp) { i, e, cell -> EventTile(e, minOf(cell * .6f, 132.dp), Modifier.appear(i)) { onOpen(e) } }
+    // snug cards: the picture fills the card's width, less a small margin (and stays smaller than people's faces)
+    Grid(events, minCell = 168.dp, maxCols = 6, gap = 16.dp) { i, e, cell -> EventTile(e, minOf(cell - 32.dp, 150.dp)) { onOpen(e) } }
 }
 
 @Composable
 fun EventTile(e: EventEntity, pic: Dp, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = Fd.c
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(22.dp))
-        .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         FdEventPic(e.art, e.photoFile, pic, Modifier.shared("event-${e.id}"), lift = true)
         Text(e.name, style = fdText(15.5f, FontWeight.SemiBold), modifier = Modifier.padding(top = 14.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(Events.dates(e.startDay, e.endDay), style = fdText(12.5f, color = c.muted), modifier = Modifier.padding(top = 2.dp), maxLines = 1)
@@ -280,7 +282,7 @@ fun CardGrid(docs: List<DocumentEntity>, holder: String, onOpen: (DocumentEntity
             docs.chunked(cols).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     row.forEach { d ->
-                        Box(Modifier.weight(1f).aspectRatio(1.586f).appear(i++).shared("card-${d.id}").clip(RoundedCornerShape(18.dp)).clickable { onOpen(d) }) {
+                        Box(Modifier.weight(1f).aspectRatio(1.586f).appear(i++, "card-${d.id}").shared("card-${d.id}").clip(RoundedCornerShape(18.dp)).clickable { onOpen(d) }) {
                             FdWalletCard(d, holder, open = false, Modifier.fillMaxSize())
                         }
                     }
@@ -357,7 +359,7 @@ fun EventsPage(view: GroupView) {
         if (past.isNotEmpty()) {
             FdSectionTitle("Past", Modifier.padding(start = 0.dp))
             Column(Modifier.graphicsLayer { alpha = .8f }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                past.reversed().forEachIndexed { i, e -> EventRow(e, Modifier.appear(i)) { app.go(Page.Event(e.id)) } }
+                past.reversed().forEach { e -> EventRow(e) { app.go(Page.Event(e.id)) } }
             }
         }
     }
