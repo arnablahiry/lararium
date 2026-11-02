@@ -215,7 +215,19 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
         fields.forEachIndexed { i, (label, value) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FdInput(label, { v -> fields[i] = v to fields[i].second }, Modifier.weight(.8f), placeholder = "Label")
-                FdInput(value, { v -> fields[i] = fields[i].first to v }, Modifier.weight(1.2f), placeholder = if (DocTypes.isDate(label)) "dd/mm/yyyy" else "Value")
+                var picking by remember { mutableStateOf(false) }
+                val calendar: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = if (!DocTypes.isDate(label, value)) null else {
+                    {
+                        Box {
+                            FdIconButton("calendar", { picking = true }, size = 30.dp, iconSize = 17.dp, tint = c.muted, description = "Pick the date")
+                            if (picking) CalendarPopup(com.familydocs.app.domain.Expiry.parse(value), { d ->
+                                fields[i] = fields[i].first to d.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")); picking = false
+                            }, { picking = false })
+                        }
+                    }
+                }
+                FdInput(value, { v -> fields[i] = fields[i].first to v }, Modifier.weight(1.2f), placeholder = if (DocTypes.isDate(label)) "dd/mm/yyyy" else "Value",
+                    trailing = calendar)
                 FdIconButton("minus", { fields.removeAt(i) }, size = 34.dp, iconSize = 16.dp, tint = c.muted, description = "Remove $label")
             }
         }
@@ -356,12 +368,11 @@ fun EventEditSheet(view: GroupView, event: EventEntity?, onDismiss: () -> Unit, 
             } }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FdField("From", Modifier.weight(1f), error = if (startDay == null) "Like 2026-12-24" else null, hint = startDay?.let { Events.dates(it.toString(), null) }) {
-                FdInput(start, { start = it.trim() }, placeholder = "2026-12-24", icon = "calendar")
+            FdField("From", Modifier.weight(1f)) {
+                DateButton(startDay, { d -> d?.let { start = it.toString(); if (endDay != null && !endDay.isAfter(it)) end = "" } })
             }
-            FdField("Until (optional)", Modifier.weight(1f), error = if (end.isNotBlank() && endDay == null) "Like 2026-12-31" else null,
-                hint = endDay?.let { Events.dates(it.toString(), null) }) {
-                FdInput(end, { end = it.trim() }, placeholder = "2026-12-31", icon = "calendar")
+            FdField("Until (optional)", Modifier.weight(1f)) {
+                DateButton(endDay, { end = it?.toString() ?: "" }, placeholder = "One day", min = startDay?.plusDays(1), clearable = true)
             }
         }
         FdField("Who's going") {
