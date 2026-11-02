@@ -55,7 +55,7 @@ jobs:
           cp "$(ls $d/deb/*.deb | head -1)" "Lararium-linux-$V.deb"; cp "Lararium-linux-$V.deb" Lararium-linux.deb
           cp "$(ls $d/rpm/*.rpm | head -1)" "Lararium-linux-$V.rpm"; cp "Lararium-linux-$V.rpm" Lararium-linux.rpm
           tar -C "$d/app" -czf "Lararium-linux-$V.tar.gz" Lararium; cp "Lararium-linux-$V.tar.gz" Lararium-linux.tar.gz
-          { echo "Lararium for Linux $V (x86-64). View-only for now: everything in your vault, read from your encrypted Google Drive backup and your group's shares. Add and change things on the phone."
+          { echo "Lararium for Linux $V (x86-64). Everything in your vault, read from your encrypted Google Drive backup and your group's shares; add and change things here and your phone takes them over. Later versions install from Settings › About."
             echo
             echo "Install: Ubuntu / Debian: sudo apt install ./Lararium-linux.deb · Fedora / openSUSE: sudo dnf install ./Lararium-linux.rpm · anything else: unpack the .tar.gz and run Lararium/bin/Lararium."
             echo "Your Google sign-in is kept in the desktop's keyring (secret-tool, from libsecret-tools) when there is one."

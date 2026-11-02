@@ -172,6 +172,8 @@ fun main() {
                 }
             })
             if (app.stage == AppModel.Stage.LOADING) app.load(first = true)
+            // a newer version of this app: Settings › About shows it (checked again every 6 hours)
+            launch { while (true) { Updater.check(); delay(6 * 3600_000L) } }
             // every few minutes; every half minute while changes made here are on their way to the phone
             var n = 0
             while (true) {

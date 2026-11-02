@@ -2,6 +2,10 @@
 # the app shows it once after updating, Settings lists it under "Update" before downloading, and CI puts it in the
 # release notes. One "- " line per change, written for the people using the app.
 
+## 0.9.5
+- The computer apps update themselves: Settings › About shows a new version, downloads it and installs it
+- A document's Archive button has its own line, so its label fits
+
 ## 0.9.4
 - The computer apps (Mac, Windows, Linux) can now change things too: add and edit documents, people, events and the group's name and picture there, and your phone takes the changes over within seconds while Lararium is open (or the next time you open it), then backs them up and shares them as usual
 - Event pictures show on the computer as soon as you change them on the phone

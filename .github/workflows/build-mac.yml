@@ -50,7 +50,7 @@ jobs:
           echo "V=$V" >> $GITHUB_ENV
           f=$(ls desktop/build/compose/binaries/main/dmg/*.dmg | head -1)
           cp "$f" "Lararium-mac-$V.dmg"; cp "$f" Lararium-mac.dmg
-          { echo "Lararium for Mac $V (Apple silicon). View-only for now: everything in your vault, read from your encrypted Google Drive backup and your group's shares. Add and change things on the phone."
+          { echo "Lararium for Mac $V (Apple silicon). Everything in your vault, read from your encrypted Google Drive backup and your group's shares; add and change things here and your phone takes them over. Later versions install from Settings › About."
             echo
             echo "Install: open the .dmg and drag Lararium to Applications. The first time, macOS may say it can't check the app (it isn't from the App Store): open System Settings › Privacy & Security and click Open Anyway, or in Terminal run:"
             echo

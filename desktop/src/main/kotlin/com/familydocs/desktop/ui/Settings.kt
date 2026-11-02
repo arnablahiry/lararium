@@ -41,6 +41,7 @@ import com.familydocs.desktop.BuildInfo
 import com.familydocs.desktop.Platform
 import com.familydocs.desktop.Theme
 import com.familydocs.desktop.rememberApp
+import kotlinx.coroutines.launch
 
 /** The phone's release notes, shipped with this app. */
 private val changelog: List<Changelog.Entry> by lazy {
@@ -153,6 +154,7 @@ fun SettingsPage(view: GroupView) {
         Card {
             FdListItem("Lararium for ${Platform.device} ${BuildInfo.VERSION}", "${view.members.count { !it.shared }} people · ${view.docs.size} documents in ${view.group?.name ?: "this group"}",
                 first = true, icon = "info")
+            UpdateRow()
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                 Text("Keyboard", style = fdText(14f, FontWeight.SemiBold))
                 Text("${Platform.mod}F search · ${Platform.mod}R update · ${Platform.mod}L lock · ${Platform.mod}, settings · Esc back", style = fdText(12f, color = c.muted))
@@ -187,4 +189,50 @@ fun SettingsPage(view: GroupView) {
         "Lararium forgets your Google sign-in here. Your phone, your backup and your group stay exactly as they are; sign in again any time." +
             if (app.waiting > 0) " Changes made here that your phone hasn't taken over yet stay in Drive and still reach it." else "",
         "Sign out", onConfirm = { signingOut = false; app.signOut() }, onDismiss = { signingOut = false })
+}
+
+/** Settings › About: this app's updates, downloaded and installed from here. */
+@Composable
+private fun UpdateRow() {
+    val c = Fd.c
+    val toast = com.familydocs.app.ui.ds.LocalToast.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val u = com.familydocs.desktop.Updater
+    val r = u.latest
+    val mb = r?.size?.takeIf { it > 0 }?.let { " (${(it + 524_288) / 1_048_576} MB)" }.orEmpty()
+    Column {
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            com.familydocs.app.ui.ds.FdLic(if (u.state == com.familydocs.desktop.Updater.State.AVAILABLE || u.state == com.familydocs.desktop.Updater.State.READY) "download" else "refresh",
+                if (u.state == com.familydocs.desktop.Updater.State.AVAILABLE) c.accent else c.primary)
+            Column(Modifier.weight(1f)) {
+                Text(when (u.state) {
+                    com.familydocs.desktop.Updater.State.AVAILABLE -> "Version ${r?.version} is available"
+                    com.familydocs.desktop.Updater.State.DOWNLOADING -> "Downloading ${r?.version}…"
+                    com.familydocs.desktop.Updater.State.READY -> "Version ${r?.version} is ready"
+                    com.familydocs.desktop.Updater.State.CHECKING -> "Checking for updates…"
+                    com.familydocs.desktop.Updater.State.UP_TO_DATE -> "Up to date"
+                    else -> "Updates"
+                }, style = fdText(14f, FontWeight.SemiBold))
+                Text(when (u.state) {
+                    com.familydocs.desktop.Updater.State.AVAILABLE -> "Downloads here and installs over this one$mb"
+                    com.familydocs.desktop.Updater.State.DOWNLOADING -> "${(u.progress * 100).toInt()}%"
+                    com.familydocs.desktop.Updater.State.READY -> if (Platform.isLinux) "Opens in your system's installer" else "Lararium closes, updates and opens again in a few seconds"
+                    com.familydocs.desktop.Updater.State.FAILED -> u.error ?: "Couldn't check"
+                    else -> "This is the newest version for your ${Platform.device}"
+                }, style = fdText(12f, color = if (u.state == com.familydocs.desktop.Updater.State.FAILED) c.danger else c.muted))
+                if (u.state == com.familydocs.desktop.Updater.State.DOWNLOADING) androidx.compose.material3.LinearProgressIndicator(
+                    progress = { u.progress }, modifier = Modifier.padding(top = 8.dp).fillMaxWidth(), color = c.ok, trackColor = c.surface2)
+            }
+            when (u.state) {
+                com.familydocs.desktop.Updater.State.AVAILABLE ->
+                    FdButton("Download", { scope.launch { u.download() } }, Modifier.width(140.dp), icon = "download")
+                com.familydocs.desktop.Updater.State.READY ->
+                    FdButton(if (Platform.isLinux) "Install" else "Update now", { u.install { kotlin.system.exitProcess(0) }?.let { toast.show(it) } }, Modifier.width(150.dp))
+                com.familydocs.desktop.Updater.State.DOWNLOADING, com.familydocs.desktop.Updater.State.CHECKING -> {}
+                else -> FdButton("Check", { scope.launch { u.check() } }, Modifier.width(110.dp), kind = BtnKind.Ghost)
+            }
+        }
+    }
 }

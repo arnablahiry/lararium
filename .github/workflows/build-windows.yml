@@ -53,7 +53,7 @@ jobs:
           echo "V=$V" >> $GITHUB_ENV
           f=$(ls desktop/build/compose/binaries/main/msi/*.msi | head -1)
           cp "$f" "Lararium-windows-$V.msi"; cp "$f" Lararium-windows.msi
-          { echo "Lararium for Windows $V. View-only for now: everything in your vault, read from your encrypted Google Drive backup and your group's shares. Add and change things on the phone."
+          { echo "Lararium for Windows $V. Everything in your vault, read from your encrypted Google Drive backup and your group's shares; add and change things here and your phone takes them over. Later versions install from Settings › About."
             echo
             echo "Install: run the .msi (no administrator rights needed). Windows may warn that it doesn't know the publisher (the app isn't signed with a paid certificate): click More info, then Run anyway."
           } > win-notes.md

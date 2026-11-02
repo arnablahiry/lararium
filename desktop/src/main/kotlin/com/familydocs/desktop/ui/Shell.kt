@@ -247,7 +247,12 @@ private fun Footer() {
                 app.chooseTheme(when (app.theme) { Theme.SYSTEM -> if (c.dark) Theme.LIGHT else Theme.DARK; Theme.LIGHT -> Theme.DARK; Theme.DARK -> Theme.LIGHT })
             }
             Spacer(Modifier.weight(1f))
-            FooterButton("gear", "Settings (${com.familydocs.desktop.Platform.mod},)") { app.go(Page.Settings) }
+            Box {
+                FooterButton("gear", if (com.familydocs.desktop.Updater.state == com.familydocs.desktop.Updater.State.AVAILABLE) "Settings · an update is ready"
+                    else "Settings (${com.familydocs.desktop.Platform.mod},)") { app.go(Page.Settings) }
+                if (com.familydocs.desktop.Updater.state == com.familydocs.desktop.Updater.State.AVAILABLE)
+                    Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(8.dp).clip(CircleShape).background(c.accent))
+            }
         }
     }
 }

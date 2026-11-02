@@ -202,11 +202,14 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                 if (canEdit) com.familydocs.app.ui.ds.FdTextButton("Unarchive", { scope.launch { runCatching { app.repo.setArchived(d.id, false) }.onSuccess { toast.show("Back in the wallet") } } })
             }
             // `.actions`
-            if (canEdit) Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FdButton("Edit", { onEdit(d.memberId) }, Modifier.weight(1f), BtnKind.Ghost, icon = "edit")
+            if (canEdit) Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FdButton("Edit", { onEdit(d.memberId) }, Modifier.weight(1f), BtnKind.Ghost, icon = "edit")
+                    FdButton("Delete", { confirmDelete = true }, Modifier.weight(1f), BtnKind.Ghost, icon = "trash", contentColor = c.danger)
+                }
+                // on its own line: three buttons side by side don't fit their words on a phone
                 if (!d.archived) FdButton("Archive", { scope.launch { runCatching { app.repo.setArchived(d.id, true) }.onSuccess { toast.show("Archived"); onBack() }.onFailure { toast.show(it.message ?: "Couldn't archive") } } },
-                    Modifier.weight(1f), BtnKind.Ghost, icon = "archive")
-                FdButton("Delete", { confirmDelete = true }, Modifier.weight(1f), BtnKind.Ghost, icon = "trash", contentColor = c.danger)
+                    kind = BtnKind.Ghost, icon = "archive")
             }
         }
     }
