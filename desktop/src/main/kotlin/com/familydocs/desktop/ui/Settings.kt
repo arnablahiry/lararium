@@ -93,7 +93,7 @@ fun SettingsPage(view: GroupView) {
             data.groups.forEachIndexed { i, g ->
                 val n = data.members.count { it.groupId == g.id && !it.shared } + 1
                 FdListItem(g.name, "$n ${if (n == 1) "person" else "people"} and Common · people, picture, invites", first = i == 0,
-                    leading = { GroupPic(g, 38) }, onClick = { app.selectGroup(g.id); family = g.id })
+                    leading = { GroupPic(g, 38) }, onClick = { app.selectGroup(g.id, stay = true); family = g.id })
             }
         }
 

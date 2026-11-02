@@ -84,7 +84,8 @@ class AppModel(private val scope: CoroutineScope) {
     var awaySince = 0L
 
     fun chooseTheme(t: Theme) { theme = t; prefs.put("theme", t.name) }
-    fun selectGroup(id: String) { group = id; prefs.put("group", id); stack.clear(); stack += Page.Home }
+    /** Shows group [id]; back to its Home unless [stay] (Settings opening a group's preferences). */
+    fun selectGroup(id: String, stay: Boolean = false) { group = id; prefs.put("group", id); if (!stay) { stack.clear(); stack += Page.Home } }
     fun go(p: Page) { if (stack.lastOrNull() != p) stack += p }
     fun back() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
     fun home() { stack.clear(); stack += Page.Home }

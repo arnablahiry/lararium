@@ -144,6 +144,8 @@ fun LockPage() {
     var checking by remember { mutableStateOf(false) }
     var wrong by remember { mutableIntStateOf(0) }
     var emergency by remember { mutableStateOf(false) }
+    var flash by remember { mutableStateOf<com.familydocs.app.ui.ds.KeyFlash?>(null) }
+    fun lightUp(k: String) { flash = com.familydocs.app.ui.ds.KeyFlash(k, (flash?.serial ?: 0) + 1) }
     val cards = data?.docs.orEmpty().filter { com.familydocs.app.domain.DocTypes.forName(it.name).key == "emergency" && !it.archived && it.eventId == null }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -167,8 +169,8 @@ fun LockPage() {
         if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
         val ch = e.utf16CodePoint.toChar()
         when {
-            ch in '0'..'9' -> { digit(ch); true }
-            e.key == Key.Backspace -> { if (!success) pin = pin.dropLast(1); true }
+            ch in '0'..'9' -> { lightUp(ch.toString()); digit(ch); true }
+            e.key == Key.Backspace -> { lightUp("Delete"); if (!success) pin = pin.dropLast(1); true }
             else -> false
         }
     }, contentAlignment = Alignment.Center) {
@@ -183,7 +185,7 @@ fun LockPage() {
             Spacer(Modifier.height(24.dp))
             FdDots(pass.length, pin.length, shake, success)
             Spacer(Modifier.height(34.dp))
-            FdKeypad(onDigit = ::digit, onDelete = { if (!success) pin = pin.dropLast(1) })
+            FdKeypad(onDigit = ::digit, onDelete = { if (!success) pin = pin.dropLast(1) }, flash = flash)
             if (emergency) EmergencySheet(cards, data?.members.orEmpty()) { emergency = false; focus.requestFocus() }
             Text("Type it, or click the keys", style = fdText(12f, color = c.muted), modifier = Modifier.padding(top = 18.dp))
             if (app.emergencyOnLock && cards.isNotEmpty()) Box(Modifier.padding(top = 14.dp)) {

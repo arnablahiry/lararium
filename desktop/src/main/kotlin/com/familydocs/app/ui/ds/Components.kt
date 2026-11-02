@@ -6,6 +6,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -363,10 +365,22 @@ fun FdProgress(modifier: Modifier = Modifier) {
 @Composable
 fun FdSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val c = Fd.c
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color(0x73080C16)).tap(role = Role.Button, onClick = onDismiss), contentAlignment = Alignment.Center) {
+    // fades in: the window behind dims (in dark mode it goes darker, in light mode it greys and lightens a little),
+    // the card rises and settles; clicking outside or Esc fades it out again
+    var shown by remember { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    LaunchedEffect(leaving) { if (leaving) { shown = false; delay(170); onDismiss() } }
+    val p by animateFloatAsState(if (shown) 1f else 0f, tween(if (shown) 260 else 160, easing = FdEase), label = "sheet")
+    val scrim = if (c.dark) Color(0xFF000000).copy(alpha = .62f * p) else Color(0xFF1B2233).copy(alpha = .34f * p)
+    androidx.compose.ui.window.Dialog(onDismissRequest = { leaving = true },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, scrimColor = Color.Transparent)) {
+        Box(Modifier.fillMaxSize().background(scrim).tap(role = Role.Button) { leaving = true }, contentAlignment = Alignment.Center) {
             Column(
-                Modifier.widthIn(max = 460.dp).fillMaxWidth(.9f).shadow(24.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(c.surface)
+                Modifier.widthIn(max = 460.dp).fillMaxWidth(.9f)
+                    .graphicsLayer { alpha = p; val k = .94f + .06f * p; scaleX = k; scaleY = k; translationY = (1f - p) * 18.dp.toPx() }
+                    .shadow(28.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(c.surface)
+                    .border(1.dp, if (c.dark) c.line else Color.Transparent, RoundedCornerShape(28.dp))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                     .padding(start = 24.dp, end = 24.dp, bottom = 22.dp),
             ) {

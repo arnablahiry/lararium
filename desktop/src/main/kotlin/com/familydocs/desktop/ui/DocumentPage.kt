@@ -101,18 +101,21 @@ fun DocumentPage(view: GroupView, id: String) {
                         FdIconButton("download", { save(d)?.let { toast.show(it) } }, size = 38.dp, iconSize = 19.dp, description = "Save a copy…")
                     }
                 }
+                // the document itself when there's a scan or PDF; its card only when there isn't (event tickets: never a card)
+                val card = d.eventId == null && (d.attachments.isEmpty() || pages?.isEmpty() == true)
+                val left = card || d.attachments.isNotEmpty()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    // ---- the card and the scans ----
-                    Column(Modifier.weight(1.15f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Box(Modifier.fillMaxWidth().aspectRatio(1.586f)) { FdWalletCard(d, member?.name ?: "", open = false, Modifier.fillMaxSize()) }
+                    if (left) Column(Modifier.weight(1.15f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (card) Box(Modifier.fillMaxWidth().aspectRatio(1.586f).shared("card-${d.id}")) { FdWalletCard(d, member?.name ?: "", open = false, Modifier.fillMaxSize()) }
                         when {
                             d.attachments.isEmpty() -> {}
-                            pages == null -> Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface2).padding(24.dp)) {
+                            pages == null -> Column(Modifier.fillMaxWidth().aspectRatio(1.3f).shared("card-${d.id}").clip(RoundedCornerShape(18.dp)).background(c.surface2).padding(24.dp),
+                                verticalArrangement = Arrangement.Center) {
                                 Text("Opening the file…", style = fdText(12.5f, color = c.muted)); FdProgress(Modifier.padding(top = 10.dp))
                             }
                             pages!!.isEmpty() -> FdEmpty("The file couldn't be opened here. Try Save a copy.")
                             else -> pages!!.forEachIndexed { i, p ->
-                                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).border(1.dp, c.line, RoundedCornerShape(18.dp)).background(c.surface2)
+                                Box(Modifier.fillMaxWidth().then(if (i == 0) Modifier.shared("card-${d.id}") else Modifier.appear(i)).clip(RoundedCornerShape(18.dp)).border(1.dp, c.line, RoundedCornerShape(18.dp)).background(c.surface2)
                                     .clickable { zoom = i }) {
                                     Image(p, "${d.name}, page ${i + 1}", Modifier.fillMaxWidth(), contentScale = ContentScale.FillWidth)
                                     if (pages!!.size > 1) Box(Modifier.align(Alignment.BottomEnd).padding(10.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xB30A0E18))
@@ -122,7 +125,7 @@ fun DocumentPage(view: GroupView, id: String) {
                         }
                     }
                     // ---- details ----
-                    Column(Modifier.weight(1f)) {
+                    Column(if (left) Modifier.weight(1f) else Modifier.weight(1f).widthIn(max = 680.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             FdDocIcon(d)
                             Column {

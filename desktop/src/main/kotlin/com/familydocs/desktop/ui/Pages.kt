@@ -140,39 +140,56 @@ fun HomePage(view: GroupView) {
             com.familydocs.app.ui.ds.FdTextButton("Add a person", { addingPerson = true })
         }
         if (addingPerson) PersonEditSheet(view, null, view.group?.id) { addingPerson = false }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalArrangement = Arrangement.spacedBy(26.dp)) {
-            view.members.forEach { m ->
-                Column(Modifier.width(150.dp).clip(RoundedCornerShape(20.dp)).clickable { app.go(Page.Person(m.id)) }.padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                    FdAvatar(m.name, 120.dp, photoFile = m.photoFile, character = m.avatar, shared = m.shared, lift = true)
-                    Text(m.name, style = fdText(16f, FontWeight.SemiBold), modifier = Modifier.padding(top = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val n = view.count(m.id)
-                    Text("${if (m.shared) "Shared" else if (m.isSelf) "You" else m.relation} · $n doc${if (n == 1) "" else "s"}", style = fdText(12f, color = c.muted))
-                }
+        // big faces, up to 5 side by side
+        Grid(view.members, minCell = 176.dp, maxCols = 5, gap = 24.dp) { i, m, cell ->
+            Column(Modifier.fillMaxWidth().appear(i).clip(RoundedCornerShape(22.dp)).clickable { app.go(Page.Person(m.id)) }.padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                FdAvatar(m.name, minOf(cell * .82f, 172.dp), Modifier.shared("person-${m.id}"), photoFile = m.photoFile, character = m.avatar, shared = m.shared, lift = true)
+                Text(m.name, style = fdText(17f, FontWeight.SemiBold), modifier = Modifier.padding(top = 14.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val n = view.count(m.id)
+                Text("${if (m.shared) "Shared" else if (m.isSelf) "You" else m.relation} · $n doc${if (n == 1) "" else "s"}", style = fdText(12.5f, color = c.muted))
             }
         }
         val upcoming = view.events.filter { Events.isCurrent(it.startDay, it.endDay) }
         if (upcoming.isNotEmpty()) {
             FdSectionTitle("Events", Modifier.padding(start = 0.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                upcoming.forEach { e -> EventTile(e) { app.go(Page.Event(e.id)) } }
-            }
+            EventGrid(upcoming) { app.go(Page.Event(it.id)) }
         }
         Spacer(Modifier.height(30.dp))
     }
 }
 
+/** Items laid out in even columns ([minCell] wide at least, [maxCols] at most); [cell] is each one's width. */
 @Composable
-fun EventTile(e: EventEntity, onClick: () -> Unit) {
-    val c = Fd.c
-    Row(Modifier.width(300.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))
-        .clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        FdEventPic(e.art, e.photoFile, 54.dp)
-        Column(Modifier.weight(1f)) {
-            Text(e.name, style = fdText(14.5f, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(Events.dates(e.startDay, e.endDay), style = fdText(12f, color = c.muted))
-            Text(Events.countdown(e.startDay, e.endDay), style = fdText(12f, FontWeight.Medium, c.accent))
+fun <T> Grid(items: List<T>, minCell: Dp, maxCols: Int, gap: Dp, item: @Composable (index: Int, item: T, cell: Dp) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val cols = ((maxWidth + gap) / (minCell + gap)).toInt().coerceIn(1, maxCols)
+        val cell = (maxWidth - gap * (cols - 1)) / cols
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            items.chunked(cols).forEachIndexed { r, row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    row.forEachIndexed { k, x -> Box(Modifier.width(cell)) { item(r * cols + k, x, cell) } }
+                }
+            }
         }
+    }
+}
+
+/** Events as cards: a big picture (smaller than people's), what and when under it. */
+@Composable
+fun EventGrid(events: List<EventEntity>, onOpen: (EventEntity) -> Unit) {
+    Grid(events, minCell = 220.dp, maxCols = 4, gap = 18.dp) { i, e, cell -> EventTile(e, minOf(cell * .6f, 132.dp), Modifier.appear(i)) { onOpen(e) } }
+}
+
+@Composable
+fun EventTile(e: EventEntity, pic: Dp, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = Fd.c
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(22.dp))
+        .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        FdEventPic(e.art, e.photoFile, pic, Modifier.shared("event-${e.id}"), lift = true)
+        Text(e.name, style = fdText(15.5f, FontWeight.SemiBold), modifier = Modifier.padding(top = 14.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(Events.dates(e.startDay, e.endDay), style = fdText(12.5f, color = c.muted), modifier = Modifier.padding(top = 2.dp), maxLines = 1)
+        Text(Events.countdown(e.startDay, e.endDay), style = fdText(12.5f, FontWeight.Medium, c.accent), modifier = Modifier.padding(top = 2.dp), maxLines = 1)
     }
 }
 
@@ -205,8 +222,8 @@ fun PersonPage(view: GroupView, id: String) {
             if (canAdd) com.familydocs.app.ui.ds.FdButton("Add document", { adding = true }, Modifier.width(190.dp), icon = "plus")
         }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            FdAvatar(m.name, 104.dp, photoFile = m.photoFile, character = m.avatar, shared = m.shared, lift = true)
-            Text(m.name, style = fdText(28f), modifier = Modifier.padding(top = 12.dp))
+            FdAvatar(m.name, 150.dp, Modifier.shared("person-${m.id}"), photoFile = m.photoFile, character = m.avatar, shared = m.shared, lift = true)
+            Text(m.name, style = fdText(30f), modifier = Modifier.padding(top = 14.dp))
             Text("${if (m.shared) "Shared" else if (m.isSelf) "You" else m.relation} · ${all.size} document${if (all.size == 1) "" else "s"}",
                 style = fdText(13f, color = c.muted), modifier = Modifier.padding(top = 4.dp))
         }
@@ -258,11 +275,12 @@ fun CardGrid(docs: List<DocumentEntity>, holder: String, onOpen: (DocumentEntity
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // 3 side by side in a window filling the screen (as wide as they read well), fewer as the window gets narrower
         val cols = ((maxWidth + 18.dp) / 318.dp).toInt().coerceIn(1, 3)
+        var i = 0
         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             docs.chunked(cols).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     row.forEach { d ->
-                        Box(Modifier.weight(1f).aspectRatio(1.586f).clip(RoundedCornerShape(18.dp)).clickable { onOpen(d) }) {
+                        Box(Modifier.weight(1f).aspectRatio(1.586f).appear(i++).shared("card-${d.id}").clip(RoundedCornerShape(18.dp)).clickable { onOpen(d) }) {
                             FdWalletCard(d, holder, open = false, Modifier.fillMaxSize())
                         }
                     }
@@ -278,9 +296,11 @@ fun DocList(docs: List<DocumentEntity>, onOpen: (DocumentEntity) -> Unit) {
     val c = Fd.c
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))) {
         docs.forEachIndexed { i, d ->
-            FdListItem(d.name, d.tail(), first = i == 0, onClick = { onOpen(d) }, leading = { FdDocIcon(d, 42.dp) },
-                extraLines = listOfNotNull(d.validUntil()?.let { "Valid until $it" }),
-                trailing = { FdFlag(d.issuer, 20.dp); FdIcon("chev", 18.dp, tint = c.muted) }, chevron = false)
+            Box(Modifier.appear(i)) {
+                FdListItem(d.name, d.tail(), first = i == 0, onClick = { onOpen(d) }, leading = { FdDocIcon(d, 42.dp) },
+                    extraLines = listOfNotNull(d.validUntil()?.let { "Valid until $it" }),
+                    trailing = { FdFlag(d.issuer, 20.dp); FdIcon("chev", 18.dp, tint = c.muted) }, chevron = false)
+            }
         }
     }
 }
@@ -332,21 +352,23 @@ fun EventsPage(view: GroupView) {
         if (view.events.isEmpty()) FdEmpty("No events yet. Trips, birthdays and appointments: add one here or on the phone.")
         if (now.isNotEmpty()) {
             FdSectionTitle("Coming up", Modifier.padding(start = 0.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { now.forEach { e -> EventRow(e) { app.go(Page.Event(e.id)) } } }
+            EventGrid(now) { app.go(Page.Event(it.id)) }
         }
         if (past.isNotEmpty()) {
             FdSectionTitle("Past", Modifier.padding(start = 0.dp))
-            Column(Modifier.graphicsLayer { alpha = .8f }, verticalArrangement = Arrangement.spacedBy(10.dp)) { past.reversed().forEach { e -> EventRow(e) { app.go(Page.Event(e.id)) } } }
+            Column(Modifier.graphicsLayer { alpha = .8f }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                past.reversed().forEachIndexed { i, e -> EventRow(e, Modifier.appear(i)) { app.go(Page.Event(e.id)) } }
+            }
         }
     }
 }
 
 @Composable
-private fun EventRow(e: EventEntity, onClick: () -> Unit) {
+private fun EventRow(e: EventEntity, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = Fd.c
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))
         .clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        FdEventPic(e.art, e.photoFile, 58.dp)
+        FdEventPic(e.art, e.photoFile, 76.dp, Modifier.shared("event-${e.id}"))
         Column(Modifier.weight(1f)) {
             Text(e.name, style = fdText(15f, FontWeight.SemiBold))
             Text("${Events.dates(e.startDay, e.endDay)} · ${Events.countdown(e.startDay, e.endDay)}", style = fdText(12.5f, color = c.muted))
@@ -367,6 +389,11 @@ fun EventPage(view: GroupView, id: String) {
     val organiser = e.organiserKey?.let { k -> view.data.members.firstOrNull { it.origin == k && !it.shared }?.name ?: "another member" }
     var editing by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
+    val toast = com.familydocs.app.ui.ds.LocalToast.current
+    var notes by remember(e.id) { mutableStateOf(e.notes) }
+    // changed elsewhere (the phone, someone in the group) while you weren't typing here: take theirs
+    var seen by remember(e.id) { mutableStateOf(e.notes) }
+    if (e.notes != seen) { if (notes.trim() == seen.trim()) notes = e.notes; seen = e.notes }
     if (editing) EventEditSheet(view, e, onDismiss = { editing = false })
     if (adding) view.data.me?.let { me -> DocEditSheet(view, null, me, eventId = e.id, onDismiss = { adding = false }) }
     PageColumn(maxWidth = 900.dp) {
@@ -375,7 +402,7 @@ fun EventPage(view: GroupView, id: String) {
             com.familydocs.app.ui.ds.FdButton("Add a ticket", { adding = true }, Modifier.width(170.dp), icon = "plus")
         }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            FdEventPic(e.art, e.photoFile, 120.dp, lift = true)
+            FdEventPic(e.art, e.photoFile, 150.dp, Modifier.shared("event-${e.id}"), lift = true)
             Text(e.name, style = fdText(28f), modifier = Modifier.padding(top = 12.dp))
             Text("${Events.dates(e.startDay, e.endDay)} · ${Events.countdown(e.startDay, e.endDay)}", style = fdText(13f, color = c.muted), modifier = Modifier.padding(top = 4.dp))
             if (people.isNotEmpty()) Text(people.joinToString(", ") { it.name } + " going", style = fdText(12.5f, color = c.muted), modifier = Modifier.padding(top = 8.dp))
@@ -394,11 +421,19 @@ fun EventPage(view: GroupView, id: String) {
                     onClick = { app.go(Page.Doc(d.id)) }, leading = { FdDocIcon(d, 42.dp) })
             }
         }
-        if (e.notes.isNotBlank()) {
-            FdSectionTitle("Notes", Modifier.padding(start = 0.dp))
-            Text(com.familydocs.app.ui.ds.NoteFormat.reading(e.notes).text, style = fdText(15f, color = c.fg),
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(14.dp)).padding(14.dp))
+        // notes, written right here with the phone's formatting; saved a moment after you stop typing (or click away)
+        FdSectionTitle("Notes", Modifier.padding(start = 0.dp)) {
+            if (notes.trim() != e.notes.trim()) Text("Saving soon…", style = fdText(11f, FontWeight.Medium, c.muted))
         }
+        fun saveNotes() {
+            val n = notes.trim()
+            if (n == e.notes.trim()) return
+            app.edit({ com.familydocs.app.domain.DeskOps.op(com.familydocs.app.domain.DeskOps.EVENT).put("event", com.familydocs.app.domain.DeskOps.eventJson(e.copy(notes = n))) }) { err ->
+                err?.let { toast.show(it) }
+            }
+        }
+        androidx.compose.runtime.LaunchedEffect(notes) { kotlinx.coroutines.delay(2500); saveNotes() }
+        com.familydocs.app.ui.ds.FdNotesField(notes, { notes = it }, placeholder = "Plans, addresses, what to pack…", onDone = { saveNotes() })
     }
 }
 

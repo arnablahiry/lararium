@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,6 +89,7 @@ fun rememberGroupView(): GroupView? {
 }
 
 /** The main window: the sidebar (groups, search, people, events, you) and the page you're on. */
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun Shell() {
     val app = rememberApp()
@@ -98,15 +100,24 @@ fun Shell() {
         Box(Modifier.width(1.dp).fillMaxHeight().background(c.line))
         // the page, and "Made with love" always at the bottom of the window
         Column(Modifier.weight(1f).fillMaxHeight()) {
-            AnimatedContent(app.page, Modifier.weight(1f).fillMaxWidth(), transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) }, label = "page") { p ->
-                when (p) {
-                    Page.Home -> HomePage(view)
-                    is Page.Person -> PersonPage(view, p.id)
-                    is Page.Doc -> DocumentPage(view, p.id)
-                    Page.Events -> EventsPage(view)
-                    is Page.Event -> EventPage(view, p.id)
-                    is Page.Search -> SearchPage(view, p.query)
-                    Page.Settings -> SettingsPage(view)
+            // page changes: the new page fades and settles in, and a picture on both pages (a person, an event) travels across
+            androidx.compose.animation.SharedTransitionLayout(Modifier.weight(1f).fillMaxWidth()) {
+                AnimatedContent(app.page, Modifier.fillMaxSize(), transitionSpec = {
+                    (fadeIn(tween(340, delayMillis = 40, easing = com.familydocs.app.ui.ds.FdEase)) +
+                        androidx.compose.animation.scaleIn(tween(380, easing = com.familydocs.app.ui.ds.FdEase), initialScale = .985f)) togetherWith
+                        fadeOut(tween(160))
+                }, label = "page") { p ->
+                    CompositionLocalProvider(LocalPageMotion provides PageMotion(this@SharedTransitionLayout, this@AnimatedContent)) {
+                        when (p) {
+                            Page.Home -> HomePage(view)
+                            is Page.Person -> PersonPage(view, p.id)
+                            is Page.Doc -> DocumentPage(view, p.id)
+                            Page.Events -> EventsPage(view)
+                            is Page.Event -> EventPage(view, p.id)
+                            is Page.Search -> SearchPage(view, p.query)
+                            Page.Settings -> SettingsPage(view)
+                        }
+                    }
                 }
             }
             com.familydocs.app.ui.ds.FdMadeWith(Modifier.padding(top = 8.dp, bottom = 12.dp))

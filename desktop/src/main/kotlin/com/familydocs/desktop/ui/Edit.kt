@@ -380,7 +380,7 @@ fun EventEditSheet(view: GroupView, event: EventEntity?, onDismiss: () -> Unit, 
                     { if (d.id in pins) pins.remove(d.id) else pins.add(d.id) })
             } }
         }
-        FdField("Notes") { FdInput(notes, { notes = it }, placeholder = "Plans, addresses, what to pack…", singleLine = false) }
+        FdField("Notes") { com.familydocs.app.ui.ds.FdNotesField(notes, { notes = it }, placeholder = "Plans, addresses, what to pack…") }
     }
     if (deleting && event != null) FdConfirmSheet("Delete ${event.name}?", "The event and the tickets added only to it are removed from this computer, your phone and everyone it's shared with. Pinned vault documents stay.",
         "Delete", onConfirm = {

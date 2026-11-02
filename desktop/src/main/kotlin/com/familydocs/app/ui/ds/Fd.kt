@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,6 +71,15 @@ val DarkColors = FdColors(
     danger = Color(0xFFE9786F), ok = Color(0xFF5CC28A), hueMix = .62f, tileMix = .26f,
 )
 
+/** [a] → [b] by [t] (for the theme change). */
+fun blend(a: FdColors, b: FdColors, t: Float): FdColors = when {
+    t <= 0f -> a; t >= 1f -> b
+    else -> FdColors(dark = t >= .5f, bg = lerp(a.bg, b.bg, t), surface = lerp(a.surface, b.surface, t), surface2 = lerp(a.surface2, b.surface2, t),
+        fg = lerp(a.fg, b.fg, t), muted = lerp(a.muted, b.muted, t), line = lerp(a.line, b.line, t), primary = lerp(a.primary, b.primary, t),
+        onPrimary = lerp(a.onPrimary, b.onPrimary, t), accent = lerp(a.accent, b.accent, t), accentSoft = lerp(a.accentSoft, b.accentSoft, t),
+        danger = lerp(a.danger, b.danger, t), ok = lerp(a.ok, b.ok, t), hueMix = a.hueMix + (b.hueMix - a.hueMix) * t, tileMix = a.tileMix + (b.tileMix - a.tileMix) * t)
+}
+
 /** Abaddon (CC BY 3.0): light for normal text, bold from medium up, as in the demo's @font-face ranges. */
 /** The app's name in the header: Bitcount Grid Double (OFL), a static weight-500 cut. */
 val Bitcount = FontFamily(Font("font/bitcount_grid_double.ttf", FontWeight.Normal))
@@ -108,8 +118,11 @@ fun fdText(size: Float, weight: FontWeight = FontWeight.Normal, color: Color = C
  */
 @Composable
 fun FdTheme(dark: Boolean, content: @Composable () -> Unit) {
-    val c = if (dark) DarkColors else LightColors
-    val m3 = if (dark) darkColorScheme(
+    // switching light / dark fades every colour across, instead of jumping
+    val t by androidx.compose.animation.core.animateFloatAsState(if (dark) 1f else 0f,
+        androidx.compose.animation.core.tween(520, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "theme")
+    val c = remember(t) { blend(LightColors, DarkColors, t) }
+    val m3 = if (c.dark) darkColorScheme(
         primary = c.primary, onPrimary = c.onPrimary, secondary = c.accent, onSecondary = Color(0xFF1A1205),
         background = c.bg, onBackground = c.fg, surface = c.surface, onSurface = c.fg, surfaceVariant = c.surface2,
         onSurfaceVariant = c.muted, outline = c.line, outlineVariant = c.line, error = c.danger,

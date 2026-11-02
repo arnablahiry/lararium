@@ -100,19 +100,22 @@ fun FdDots(length: Int, filled: Int, shakeKey: Int, success: Boolean = false) {
     }
 }
 
+/** A key typed on the keyboard ([serial] so the same key twice lights up twice). */
+data class KeyFlash(val key: String, val serial: Int)
+
 /** `.keys`: 3×4 grid of 76px round keys with letters under the numerals; fingerprint and delete are flat. */
 @Composable
-fun FdKeypad(onDigit: (Char) -> Unit, onDelete: () -> Unit, onBiometric: (() -> Unit)? = null) {
+fun FdKeypad(onDigit: (Char) -> Unit, onDelete: () -> Unit, onBiometric: (() -> Unit)? = null, flash: KeyFlash? = null) {
     val letters = listOf("", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ")
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         for (row in 0 until 3) Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            for (col in 1..3) { val d = row * 3 + col; Key("$d", { onDigit('0' + d) }) { Numeral("$d", letters[d - 1]) } }
+            for (col in 1..3) { val d = row * 3 + col; Key("$d", { onDigit('0' + d) }, flash = flash) { Numeral("$d", letters[d - 1]) } }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             if (onBiometric != null) Key("Use fingerprint", onBiometric, flat = true) { FdIcon("finger", 28.dp, 1.6f, Fd.c.muted) }
             else Spacer(Modifier.size(76.dp))
-            Key("0", { onDigit('0') }) { Numeral("0", "") }
-            Key("Delete", onDelete, flat = true) { FdIcon("bksp", 26.dp, 1.6f, Fd.c.muted) }
+            Key("0", { onDigit('0') }, flash = flash) { Numeral("0", "") }
+            Key("Delete", onDelete, flat = true, flash = flash) { FdIcon("bksp", 26.dp, 1.6f, Fd.c.muted) }
         }
     }
 }
@@ -126,11 +129,15 @@ private fun Numeral(n: String, l: String) {
 }
 
 @Composable
-private fun Key(label: String, onClick: () -> Unit, flat: Boolean = false, content: @Composable () -> Unit) {
+private fun Key(label: String, onClick: () -> Unit, flat: Boolean = false, flash: KeyFlash? = null, content: @Composable () -> Unit) {
     val c = Fd.c
     val haptic = LocalHapticFeedback.current
     val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
+    val clicked by source.collectIsPressedAsState()
+    // typed on the keyboard: the key lights up as if clicked
+    var lit by remember { mutableStateOf(false) }
+    LaunchedEffect(flash) { if (flash != null && flash.key == label) { lit = true; kotlinx.coroutines.delay(150); lit = false } }
+    val pressed = clicked || lit
     val bg by animateColorAsState(
         when { flat && pressed -> c.fg.copy(alpha = .06f); flat -> Color.Transparent; pressed -> c.key(.20f); else -> c.key(.08f) }, tween(120), label = "key")
     val s by animateFloatAsState(if (pressed && !flat) .95f else 1f, tween(120), label = "keyScale")
