@@ -34,6 +34,9 @@ object Updater {
     private const val RELEASES = "https://api.github.com/repos/arnablahiry/lararium/releases?per_page=60"
 
     private val prefix = when { Platform.isMac -> "mac-v"; Platform.isWindows -> "windows-v"; else -> "linux-v" }
+    /** The newest version's number, next to the newest files (a plain download: no GitHub API, so no rate limit). */
+    private val versionFile = "https://github.com/arnablahiry/lararium/releases/download/${prefix.removeSuffix("-v")}/${prefix.removeSuffix("-v")}-version.txt"
+    private fun assetUrl(v: String) = "https://github.com/arnablahiry/lararium/releases/download/$prefix$v/${assetName(v)}"
 
     /** The file for this computer in release [v]. */
     private fun assetName(v: String) = when {
@@ -56,8 +59,12 @@ object Updater {
         if (state == State.DOWNLOADING || state == State.READY) return@withContext
         state = State.CHECKING; error = null
         runCatching {
+            // the version file first; the GitHub API (limited to 60 looks an hour per network) only if it isn't there
+            http.newCall(Request.Builder().url(versionFile).build()).execute().use { r ->
+                if (r.isSuccessful) r.body!!.string().trim().takeIf { it.matches(Regex("\\d+(\\.\\d+)+")) } else null
+            }?.let { v -> return@runCatching Release(v, assetName(v), assetUrl(v), 0L) }
             val text = http.newCall(Request.Builder().url(RELEASES).header("Accept", "application/vnd.github+json").build()).execute().use { r ->
-                check(r.isSuccessful) { "GitHub ${r.code}" }; r.body!!.string()
+                check(r.isSuccessful) { if (r.code == 403 || r.code == 429) "GitHub is busy right now, try again in a while" else "GitHub ${r.code}" }; r.body!!.string()
             }
             val a = JSONArray(text)
             val best = (0 until a.length()).map { a.getJSONObject(it) }

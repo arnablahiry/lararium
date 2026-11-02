@@ -11,6 +11,7 @@ on:
       - "app/src/main/java/com/familydocs/app/domain/**"
       - "app/src/main/java/com/familydocs/app/data/Entities.kt"
       - "app/src/main/java/com/familydocs/app/ocr/FieldMerge.kt"
+      - "app/src/main/java/com/familydocs/app/ocr/DocumentParser.kt"
       - "app/src/main/java/com/familydocs/app/backup/BackupCrypto.kt"
       - "app/src/main/java/com/familydocs/app/backup/DriveClient.kt"
       - "app/src/main/java/com/familydocs/app/ui/ds/IconPaths.kt"
@@ -52,6 +53,7 @@ jobs:
         run: |
           V=1.0.${{ github.run_number }}
           echo "V=$V" >> $GITHUB_ENV
+          echo "$V" > mac-version.txt   # read by the app's updater (Settings › About)
           f=$(ls desktop/build/compose/binaries/main/dmg/*.dmg | head -1)
           cp "$f" "Lararium-mac-$V.dmg"; cp "$f" Lararium-mac.dmg
           { echo "Lararium for Mac $V (Apple silicon). Everything in your vault, read from your encrypted Google Drive backup and your group's shares; add and change things here and your phone takes them over. Later versions install from Settings › About."
@@ -81,5 +83,7 @@ jobs:
           name: Lararium for Mac (newest)
           make_latest: false
           overwrite_files: true
-          files: Lararium-mac.dmg
+          files: |
+            Lararium-mac.dmg
+            mac-version.txt
           body_path: mac-notes.md

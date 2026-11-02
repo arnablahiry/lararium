@@ -33,6 +33,7 @@ val sharedSources = tasks.register<Sync>("sharedSources") {
             "com/familydocs/app/domain/**",
             "com/familydocs/app/data/Entities.kt",
             "com/familydocs/app/ocr/FieldMerge.kt",
+            "com/familydocs/app/ocr/DocumentParser.kt",
             "com/familydocs/app/backup/BackupCrypto.kt",
             "com/familydocs/app/backup/DriveClient.kt",
             "com/familydocs/app/ui/ds/IconPaths.kt",

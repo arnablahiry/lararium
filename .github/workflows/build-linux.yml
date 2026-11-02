@@ -12,6 +12,7 @@ on:
       - "app/src/main/java/com/familydocs/app/domain/**"
       - "app/src/main/java/com/familydocs/app/data/Entities.kt"
       - "app/src/main/java/com/familydocs/app/ocr/FieldMerge.kt"
+      - "app/src/main/java/com/familydocs/app/ocr/DocumentParser.kt"
       - "app/src/main/java/com/familydocs/app/backup/BackupCrypto.kt"
       - "app/src/main/java/com/familydocs/app/backup/DriveClient.kt"
       - "app/src/main/java/com/familydocs/app/ui/ds/IconPaths.kt"
@@ -51,6 +52,7 @@ jobs:
         run: |
           V=1.0.${{ github.run_number }}
           echo "V=$V" >> $GITHUB_ENV
+          echo "$V" > linux-version.txt   # read by the app's updater (Settings › About)
           d=desktop/build/compose/binaries/main
           cp "$(ls $d/deb/*.deb | head -1)" "Lararium-linux-$V.deb"; cp "Lararium-linux-$V.deb" Lararium-linux.deb
           cp "$(ls $d/rpm/*.rpm | head -1)" "Lararium-linux-$V.rpm"; cp "Lararium-linux-$V.rpm" Lararium-linux.rpm
@@ -89,4 +91,5 @@ jobs:
             Lararium-linux.deb
             Lararium-linux.rpm
             Lararium-linux.tar.gz
+            linux-version.txt
           body_path: linux-notes.md

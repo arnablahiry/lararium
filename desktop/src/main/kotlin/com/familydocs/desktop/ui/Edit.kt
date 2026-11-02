@@ -68,6 +68,7 @@ import com.familydocs.app.ui.ds.fdText
 import com.familydocs.desktop.AppModel
 import com.familydocs.desktop.Desk
 import com.familydocs.desktop.rememberApp
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -167,10 +168,16 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
     val toast = LocalToast.current
     var name by remember { mutableStateOf(doc?.name ?: "") }
     val fields = remember {
-        mutableStateListOf<Pair<String, String>>().apply {
-            if (doc != null) doc.fields.forEach { add(it.label to it.value) } else DocTypes.template("").forEach { add(it to "") }
-        }
+        mutableStateListOf<DocField>().apply { if (doc != null) addAll(doc.fields) else DocTypes.template("").forEach { add(DocField(it, "")) } }
     }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // read from the scan, as on the phone
+    var rawText by remember { mutableStateOf(doc?.rawText ?: "") }
+    var readByOcr by remember { mutableStateOf(doc?.readByOcr ?: false) }
+    var reading by remember { mutableStateOf<String?>(null) }
+    var busyReading by remember { mutableStateOf(false) }
+    var touched by remember { mutableStateOf(doc != null) }
+    var nameFromFile by remember { mutableStateOf(false) }
     var country by remember { mutableStateOf(doc?.country ?: doc?.issuer?.takeIf { it.isNotEmpty() }) }
     var files by remember { mutableStateOf<List<Picked>?>(null) }
     var deleting by remember { mutableStateOf(false) }
@@ -179,14 +186,33 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
     var countryQuery by remember { mutableStateOf("") }
     // a new document starts from its type's usual fields (until you type in them)
     fun template(n: String) {
-        if (fields.any { it.second.isNotBlank() }) return
-        fields.clear(); DocTypes.template(n).forEach { fields.add(it to "") }
+        if (fields.any { it.value.isNotBlank() }) return
+        fields.clear(); DocTypes.template(n).forEach { fields.add(DocField(it, "")) }
+    }
+
+    /** The file just picked: its text read here, turned into details by the phone's own reader, and merged in. */
+    fun readFile(f: Picked) {
+        busyReading = true; reading = "Reading the document…"
+        scope.launch {
+            val text = com.familydocs.desktop.TextRead.read(f.bytes, f.mime)
+            busyReading = false
+            if (text.isBlank()) { reading = "No text could be read from it: fill in the details yourself"; return@launch }
+            val r = com.familydocs.app.ocr.DocumentParser.parse(text, name.takeIf { it.isNotBlank() && !nameFromFile })
+            r.suggestedName?.takeIf { name.isBlank() || nameFromFile }?.let { name = it; nameFromFile = false }
+            val merged = com.familydocs.app.ocr.FieldMerge.merge(fields.toList(), DocTypes.template(name), r.fields, ensureTemplate = !touched)
+            fields.clear(); fields.addAll(merged)
+            rawText = text; readByOcr = true
+            if (country == null) country = Countries.infer(name, merged, text).takeIf { it.isNotEmpty() }
+            val n = merged.count { it.auto && it.value.isNotBlank() }
+            reading = if (n == 0) "Read the document, but found no details to fill in" else "Filled in $n detail${if (n == 1) "" else "s"} from the scan · check them"
+        }
     }
 
     EditSheet(if (doc == null) (if (eventId != null) "Add to the event" else "Add a document") else "Edit ${doc.name}",
         if (doc == null) "Pick the scan or PDF and fill in what matters. Your phone takes it over (and backs it up) within seconds while Lararium is open there." else null,
-        onDismiss, canSave = name.isNotBlank() && (doc != null || files?.isNotEmpty() == true || fields.any { it.second.isNotBlank() }),
+        onDismiss, canSave = name.isNotBlank() && (doc != null || files?.isNotEmpty() == true || fields.any { it.value.isNotBlank() }) && !busyReading,
         missing = when {
+            busyReading -> "Reading the document…"
             name.isBlank() -> "Give it a name (or pick one of the suggestions) to save it"
             else -> "Choose the scan or PDF, or fill in a detail, to save it"
         },
@@ -197,13 +223,13 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
                 val now = System.currentTimeMillis()
                 val row = (doc ?: DocumentEntity(id = newId, memberId = memberId, name = name, fileId = null, fileMime = null,
                     eventId = eventId, createdAt = now)).copy(
-                    name = name.trim(), fieldsJson = encodeFields(fields.filter { it.first.isNotBlank() }.map { DocField(it.first.trim(), it.second.trim()) }),
-                    country = country,
+                    name = name.trim(), fieldsJson = encodeFields(fields.filter { it.label.isNotBlank() }.map { it.copy(label = it.label.trim(), value = it.value.trim()) }),
+                    country = country, rawText = rawText, readByOcr = readByOcr,
                 )
                 DeskOps.op(DeskOps.DOC).put("doc", DeskOps.docJson(row)).apply { uploaded?.let { put("files", JSONArray(it)) } }
             }, close = { onDismiss(); onSaved(newId) })
         }) {
-        FdField("Name") { FdInput(name, { name = it; if (doc == null) template(it) }, placeholder = "Passport, Visa, Flight ticket…") }
+        FdField("Name") { FdInput(name, { name = it; nameFromFile = false; if (doc == null) template(it) }, placeholder = "Passport, Visa, Flight ticket…") }
         if (doc == null || name.isBlank()) FdChips {
             (if (eventId != null) DocTypes.EVENT_SUGGESTIONS else DocTypes.SUGGESTIONS).forEach { s -> FdChip(s, name == s, { name = s; template(s) }) }
         }
@@ -211,7 +237,7 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
         FdField(if (doc == null) "Scan or PDF" else "File", hint = when {
             files != null -> files!!.joinToString(", ") { it.name } + if (doc?.attachments?.isNotEmpty() == true) " · replaces what's there now" else ""
             doc?.attachments?.isNotEmpty() == true -> "${doc.attachments.size} page${if (doc.attachments.size == 1) "" else "s"} saved"
-            else -> "Photos (JPG, PNG) or a PDF; several for several pages"
+            else -> "A photo (JPG, PNG) or a PDF: its details are read and filled in, as on the phone"
         }) {
             // what you picked, so it's clear it worked
             files?.takeIf { it.isNotEmpty() }?.let { list ->
@@ -227,18 +253,22 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
                     if (list.size > 4) Text("+${list.size - 4}", style = fdText(13f, FontWeight.SemiBold, c.muted), modifier = Modifier.align(Alignment.CenterVertically))
                 }
             }
-            FdButton(if (files == null && doc?.attachments.isNullOrEmpty()) "Choose files…" else "Choose other files…", {
-                pickFiles("Choose the scan or PDF", many = true, onProblem = { toast.show(it) }).takeIf { it.isNotEmpty() }?.let { picked ->
-                    files = picked
-                    // no name yet: the type it looks like, else the file's own name
+            reading?.let { com.familydocs.app.ui.ds.FdBanner(if (busyReading) "sparkle" else if (readByOcr) "check" else "info", it, Modifier.padding(bottom = 4.dp)) }
+            FdButton(if (files == null && doc?.attachments.isNullOrEmpty()) "Choose the file…" else "Choose another file…", {
+                // one document at a time (a PDF can have several pages)
+                pickFiles("Choose the scan or PDF", onProblem = { toast.show(it) }).firstOrNull()?.let { picked ->
+                    files = listOf(picked)
+                    // no name yet: the type it looks like, else the file's own name (the scan's own reading may replace it)
                     if (name.isBlank()) {
-                        val base = picked.first().name.substringBeforeLast('.').replace('_', ' ').replace('-', ' ').trim()
+                        val base = picked.name.substringBeforeLast('.').replace('_', ' ').replace('-', ' ').trim()
                         val t = DocTypes.forName(base)
                         name = if (t.matched) t.label else base.replaceFirstChar { it.uppercase() }
+                        nameFromFile = !t.matched
                         template(name)
                     }
+                    readFile(picked)
                 }
-            }, kind = BtnKind.Ghost, icon = "upload")
+            }, kind = BtnKind.Ghost, icon = "upload", enabled = !busyReading)
         }
         // ---- country ----
         val mine = Countries.decode(view.data.account?.countries)
@@ -260,26 +290,27 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
         }
         // ---- details ----
         Text("Details", style = fdText(12f, FontWeight.Medium, c.muted))
-        fields.forEachIndexed { i, (label, value) ->
+        fields.forEachIndexed { i, f ->
+            val label = f.label; val value = f.value
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FdInput(label, { v -> fields[i] = v to fields[i].second }, Modifier.weight(.8f), placeholder = "Label")
+                FdInput(label, { v -> fields[i] = fields[i].copy(label = v); touched = true }, Modifier.weight(.8f), placeholder = "Label")
                 var picking by remember { mutableStateOf(false) }
                 val calendar: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = if (!DocTypes.isDate(label, value)) null else {
                     {
                         Box {
                             FdIconButton("calendar", { picking = true }, size = 30.dp, iconSize = 17.dp, tint = c.muted, description = "Pick the date")
                             if (picking) CalendarPopup(com.familydocs.app.domain.Expiry.parse(value), { d ->
-                                fields[i] = fields[i].first to d.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")); picking = false
+                                fields[i] = fields[i].copy(value = d.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")), auto = false, verified = null); touched = true; picking = false
                             }, { picking = false })
                         }
                     }
                 }
-                FdInput(value, { v -> fields[i] = fields[i].first to v }, Modifier.weight(1.2f), placeholder = if (DocTypes.isDate(label)) "dd/mm/yyyy" else "Value",
+                FdInput(value, { v -> fields[i] = fields[i].copy(value = v, auto = false, verified = null); touched = true }, Modifier.weight(1.2f), placeholder = if (DocTypes.isDate(label)) "dd/mm/yyyy" else "Value",
                     trailing = calendar)
                 FdIconButton("minus", { fields.removeAt(i) }, size = 34.dp, iconSize = 16.dp, tint = c.muted, description = "Remove $label")
             }
         }
-        FdChip("Add a field", false, { fields.add("" to "") }, leading = { FdIcon("plus", 15.dp, tint = c.fg) })
+        FdChip("Add a field", false, { fields.add(DocField("", "")); touched = true }, leading = { FdIcon("plus", 15.dp, tint = c.fg) })
     }
     if (deleting && doc != null) FdConfirmSheet("Delete ${doc.name}?", "It's removed from this computer and from your phone, with its files. This can't be undone.", "Delete",
         onConfirm = {

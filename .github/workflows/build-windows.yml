@@ -11,6 +11,7 @@ on:
       - "app/src/main/java/com/familydocs/app/domain/**"
       - "app/src/main/java/com/familydocs/app/data/Entities.kt"
       - "app/src/main/java/com/familydocs/app/ocr/FieldMerge.kt"
+      - "app/src/main/java/com/familydocs/app/ocr/DocumentParser.kt"
       - "app/src/main/java/com/familydocs/app/backup/BackupCrypto.kt"
       - "app/src/main/java/com/familydocs/app/backup/DriveClient.kt"
       - "app/src/main/java/com/familydocs/app/ui/ds/IconPaths.kt"
@@ -51,6 +52,7 @@ jobs:
         run: |
           V=1.0.${{ github.run_number }}
           echo "V=$V" >> $GITHUB_ENV
+          echo "$V" > windows-version.txt   # read by the app's updater (Settings › About)
           f=$(ls desktop/build/compose/binaries/main/msi/*.msi | head -1)
           cp "$f" "Lararium-windows-$V.msi"; cp "$f" Lararium-windows.msi
           { echo "Lararium for Windows $V. Everything in your vault, read from your encrypted Google Drive backup and your group's shares; add and change things here and your phone takes them over. Later versions install from Settings › About."
@@ -78,5 +80,7 @@ jobs:
           name: Lararium for Windows (newest)
           make_latest: false
           overwrite_files: true
-          files: Lararium-windows.msi
+          files: |
+            Lararium-windows.msi
+            windows-version.txt
           body_path: win-notes.md

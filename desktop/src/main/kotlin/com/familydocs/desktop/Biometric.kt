@@ -17,7 +17,8 @@ object Biometric {
 
     @Volatile private var known: Boolean? = null
 
-    private val helper: File? get() = System.getProperty("compose.application.resources.dir")?.let { File(it, "Lararium") }
+    /** The Mac's native helper (Touch ID, and reading text for [TextRead]). */
+    internal val helper: File? get() = System.getProperty("compose.application.resources.dir")?.let { File(it, "Lararium") }
         ?.takeIf { it.isFile }?.also { if (!it.canExecute()) it.setExecutable(true) }
 
     private fun run(cmd: List<String>, seconds: Long): Pair<Int, String> = runCatching {
