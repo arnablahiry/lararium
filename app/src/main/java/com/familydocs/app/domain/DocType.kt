@@ -62,6 +62,9 @@ object DocTypes {
         "Social Security", "AFM & AMKA", "Health Insurance", "Birth Certificate", "Bank Passbook", "Vaccination Record", "Degree Certificate", "Emergency card",
     )
 
+    /** Names offered for a supplementary doc (more papers that belong with a document): anything, not only medical. */
+    val SUPPLEMENT_SUGGESTIONS = listOf("Report", "Prescription", "Test results", "Letter", "Invoice", "Receipt", "Renewal", "Amendment", "Annex", "Certificate", "Photo")
+
     /** Types offered when adding a document to an event (they set the name, so the icon and colour follow). */
     val EVENT_SUGGESTIONS = listOf("Flight ticket", "Train / bus ticket", "Event ticket", "Transport pass", "Hotel booking", "Car rental", "Bike rental", "Restaurant booking", "Drinks", "Travel insurance")
 

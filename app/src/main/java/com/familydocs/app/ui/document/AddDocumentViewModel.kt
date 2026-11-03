@@ -43,6 +43,8 @@ class AddDocumentViewModel(private val c: AppContainer, private val appContext: 
     var name by mutableStateOf("")
     /** Added to an event (tickets, hotel bookings, passes…): offers those document types. */
     val forEvent: Boolean get() = eventId != null || existing?.eventId != null
+    /** A supplementary doc (belongs with another document): offers names for those. */
+    val forSupplement: Boolean get() = parentId != null || existing?.parentId != null
     var display by mutableStateOf(DisplayMode.ICON)
     /** Front, back, more pages… in order; swipe through them on the edit and view screens. */
     val attachments = mutableStateListOf<EditAttachment>()
@@ -72,7 +74,8 @@ class AddDocumentViewModel(private val c: AppContainer, private val appContext: 
         // the next report for a document (Extend): same kind (so the same icon), today's date and room for notes
         if (docId == null && parentId != null) viewModelScope.launch {
             val p = c.repo.documentNow(parentId) ?: return@launch
-            name = p.name; countryChoice = p.country
+            // its own name (a report, an invoice, a renewal page…); the country follows the document it belongs to
+            countryChoice = p.country
             fields.clear()
             fields.add(EditField(label = "Date", value = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))))
             fields.add(EditField(label = "Notes", value = ""))

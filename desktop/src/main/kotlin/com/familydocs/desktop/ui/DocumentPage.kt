@@ -88,6 +88,7 @@ fun DocumentPage(view: GroupView, id: String) {
     var zoom by remember { mutableStateOf<Int?>(null) }
     var editing by remember { mutableStateOf(false) }
     var extending by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     val supplements = view.supplements(d.id)
     val parent = d.parentId?.let { view.doc(it) }
     val app = com.familydocs.desktop.rememberApp()
@@ -160,23 +161,33 @@ fun DocumentPage(view: GroupView, id: String) {
                             Text(if (sharedBy != null) "Shared by $sharedBy" else "Added ${fmtDate(d.createdAt)} · ${if (d.readByOcr) "details read from the file" else "entered by hand"}",
                                 style = fdText(11.5f, color = c.muted))
                         }
-                        if (editable) Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            FdButton("Edit", { editing = true }, Modifier.weight(1f), icon = "edit")
-                            if (d.eventId == null) FdButton(if (d.archived) "Back to the wallet" else "Archive", { app.setArchived(toast, d, !d.archived) }, Modifier.weight(1f),
-                                BtnKind.Ghost, icon = "archive", enabled = !app.saving)
+                        // the document's actions as a 2 x 2 grid of tiles
+                        if (editable) {
+                            val tiles = buildList<Tile> {
+                                add(Tile("edit", "Edit") { editing = true })
+                                if (d.eventId == null) add(Tile("archive", if (d.archived) "Unarchive" else "Archive") { app.setArchived(toast, d, !d.archived) })
+                                add(Tile("trash", "Delete", danger = true) { deleting = true })
+                                // more papers that belong with this one: a later report, a renewal page, an invoice, a letter...
+                                if (d.parentId == null && d.eventId == null) add(Tile("plus", "Add supplementary docs") { extending = true })
+                            }
+                            Column(Modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                tiles.chunked(2).forEach { row ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        row.forEach { t -> ActionTile(t, Modifier.weight(1f), enabled = !app.saving) }
+                                        if (row.size == 1) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                                    }
+                                }
+                            }
                         }
-                        // a doctor's report and the visits after it: the next report goes with this one
-                        if (editable && d.parentId == null && d.eventId == null)
-                            FdButton("Extend document", { extending = true }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = "plus")
                         if (d.attachments.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             FdButton(com.familydocs.desktop.Platform.openLabel, { open(d) }, Modifier.weight(1f), BtnKind.Ghost, icon = "eye")
                             FdButton("Save a copy…", { save(d)?.let { toast.show(it) } }, Modifier.weight(1f), BtnKind.Ghost, icon = "download")
                         }
                     }
                 }
-                // ---- later reports (Extend): each one's pages as you scroll, newest first ----
+                // ---- supplementary docs: each one's pages as you scroll, newest first ----
                 if (supplements.isNotEmpty()) {
-                    FdSectionTitle("Added later", Modifier.padding(start = 0.dp, top = 18.dp)) { Text("${supplements.size}", style = fdText(11f, FontWeight.Medium, c.muted)) }
+                    FdSectionTitle("Supplementary docs", Modifier.padding(start = 0.dp, top = 18.dp)) { Text("${supplements.size}", style = fdText(11f, FontWeight.Medium, c.muted)) }
                     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) { supplements.forEach { s -> Supplement(s) { app.go(com.familydocs.desktop.Page.Doc(s.id)) } } }
                 }
             }
@@ -186,6 +197,12 @@ fun DocumentPage(view: GroupView, id: String) {
 
     if (editing) DocEditSheet(view, d, d.memberId, d.eventId, onDismiss = { editing = false })
     if (extending) DocEditSheet(view, null, d.memberId, parentId = d.id, onDismiss = { extending = false })
+    if (deleting) com.familydocs.app.ui.ds.FdConfirmSheet("Delete ${d.name}?",
+        "It's removed from this computer and from your phone, with its files${if (supplements.isNotEmpty()) " and its ${supplements.size} supplementary doc${if (supplements.size == 1) "" else "s"}" else ""}. This can't be undone.",
+        "Delete", onConfirm = {
+            deleting = false
+            app.save(toast, "Deleted", build = { com.familydocs.app.domain.DeskOps.op(com.familydocs.app.domain.DeskOps.DEL_DOC).put("doc", d.id) }, close = { app.back() })
+        }, onDismiss = { deleting = false })
 
     // the page, as big as the window allows
     zoom?.let { i ->
@@ -262,5 +279,20 @@ private fun Supplement(d: DocumentEntity, onOpen: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** One of the document's action tiles. */
+private class Tile(val icon: String, val label: String, val danger: Boolean = false, val onClick: () -> Unit)
+
+@Composable
+private fun ActionTile(t: Tile, modifier: Modifier, enabled: Boolean) {
+    val c = Fd.c
+    val tint = if (t.danger) c.danger else c.fg
+    Row(modifier.height(58.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(16.dp))
+        .clickable(enabled = enabled, onClick = t.onClick).padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(9.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        FdIcon(t.icon, 18.dp, tint = tint)
+        Text(t.label, style = fdText(14f, FontWeight.SemiBold, tint), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }

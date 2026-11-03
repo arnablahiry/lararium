@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -203,9 +204,9 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                      else if (sharedBy != null) "Shared by $sharedBy · read-only here, they keep it up to date"
                      else "Added ${fmtDate(d.createdAt)} · ${if (d.readByOcr) "details read from the file" else "entered by hand"}", style = fdText(11.5f, color = c.muted))
             }
-            // ---- later reports (Extend): each one's pages as you scroll, newest first ----
+            // ---- supplementary docs: each one's pages as you scroll, newest first ----
             if (supplements.isNotEmpty()) {
-                FdSectionTitle("Added later") { Text("${supplements.size}", style = fdText(11f, FontWeight.Medium, c.muted)) }
+                FdSectionTitle("Supplementary docs") { Text("${supplements.size}", style = fdText(11f, FontWeight.Medium, c.muted)) }
                 supplements.forEach { s -> Supplement(s, onOpen = { onOpen(s.id) }) }
             }
             // put away (an old one, replaced by a renewed document)
@@ -214,16 +215,27 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                 if (canEdit) com.familydocs.app.ui.ds.FdTextButton("Unarchive", { scope.launch { runCatching { app.repo.setArchived(d.id, false) }.onSuccess { toast.show("Back in the wallet") } } })
             }
             // `.actions`
-            if (canEdit) Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FdButton("Edit", { onEdit(d.memberId) }, Modifier.weight(1f), BtnKind.Ghost, icon = "edit")
-                    FdButton("Delete", { confirmDelete = true }, Modifier.weight(1f), BtnKind.Ghost, icon = "trash", contentColor = c.danger)
+            // `.actions`: a 2 × 2 grid of tiles (icon over the word, so every label fits on a phone)
+            if (canEdit) {
+                val tiles = buildList<ActionTileSpec> {
+                    add(ActionTileSpec("edit", "Edit") { onEdit(d.memberId) })
+                    if (d.eventId == null) add(if (d.archived) ActionTileSpec("archive", "Unarchive") {
+                        scope.launch { runCatching { app.repo.setArchived(d.id, false) }.onSuccess { toast.show("Back in the wallet") } }
+                    } else ActionTileSpec("archive", "Archive") {
+                        scope.launch { runCatching { app.repo.setArchived(d.id, true) }.onSuccess { toast.show("Archived"); onBack() }.onFailure { toast.show(it.message ?: "Couldn't archive") } }
+                    })
+                    add(ActionTileSpec("trash", "Delete", danger = true) { confirmDelete = true })
+                    // more papers that belong with this one: a later report, a renewal page, an invoice, a letter…
+                    if (!d.supplement && d.eventId == null) add(ActionTileSpec("plus", "Add supplementary docs") { onExtend(d.memberId) })
                 }
-                // on its own line: three buttons side by side don't fit their words on a phone
-                // a doctor's report and the visits after it: the next report goes with this one
-                if (!d.supplement && d.eventId == null) FdButton("Extend document", { onExtend(d.memberId) }, icon = "plus")
-                if (!d.archived) FdButton("Archive", { scope.launch { runCatching { app.repo.setArchived(d.id, true) }.onSuccess { toast.show("Archived"); onBack() }.onFailure { toast.show(it.message ?: "Couldn't archive") } } },
-                    kind = BtnKind.Ghost, icon = "archive")
+                Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    tiles.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { t -> ActionTile(t, Modifier.weight(1f)) }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
             }
         }
     }
@@ -309,5 +321,20 @@ private fun Supplement(d: com.familydocs.app.data.DocumentEntity, onOpen: () -> 
             Image(p, d.name, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, c.line, RoundedCornerShape(12.dp)), contentScale = ContentScale.FillWidth)
         }
         d.fields.firstOrNull { it.label.equals("Notes", true) && it.value.isNotBlank() }?.let { Text(it.value, style = fdText(13f, color = c.fg)) }
+    }
+}
+
+/** One of the document's action tiles. */
+private class ActionTileSpec(val icon: String, val label: String, val danger: Boolean = false, val onClick: () -> Unit)
+
+@Composable
+private fun ActionTile(t: ActionTileSpec, modifier: Modifier) {
+    val c = Fd.c
+    val tint = if (t.danger) c.danger else c.fg
+    Column(modifier.height(84.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))
+        .clickable(onClick = t.onClick).padding(horizontal = 10.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
+        FdIcon(t.icon, 20.dp, tint = tint)
+        Text(t.label, style = fdText(13.5f, FontWeight.SemiBold, tint), maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }

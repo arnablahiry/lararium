@@ -119,7 +119,7 @@ fun AddDocumentScreen(memberId: String, docId: String?, onBack: () -> Unit, onSa
     fun save() { if (vm.name.isBlank()) toast.show("Give the document a name") else vm.save(onSaved) }
 
     Column(Modifier.fillMaxSize().background(c.bg).statusBarsPadding().imePadding()) {
-        FdTopBar(if (docId != null) "Edit document" else if (parentId != null) "Extend document" else "Add document", onBack) { FdTextButton("Save", ::save, enabled = !vm.saving) }
+        FdTopBar(if (docId != null) "Edit document" else if (parentId != null) "Supplementary doc" else "Add document", onBack) { FdTextButton("Save", ::save, enabled = !vm.saving) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Text(event?.let { "For ${it.name} · only shows in this event" } ?: "For ${member?.name.orEmpty()}", style = fdText(11.5f, color = c.muted), modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
 
@@ -174,7 +174,7 @@ fun AddDocumentScreen(memberId: String, docId: String?, onBack: () -> Unit, onSa
             }
             FdChips(Modifier.padding(start = 20.dp, end = 20.dp, top = 10.dp)) {
                 // for an event: tickets, bookings, passes…; otherwise the usual ID documents
-                (if (vm.forEvent) DocTypes.EVENT_SUGGESTIONS else DocTypes.SUGGESTIONS).forEach { s -> FdChip(s, vm.name.equals(s, true), { vm.onNameChange(s) }) }
+                (if (vm.forEvent) DocTypes.EVENT_SUGGESTIONS else if (vm.forSupplement) DocTypes.SUPPLEMENT_SUGGESTIONS else DocTypes.SUGGESTIONS).forEach { s -> FdChip(s, vm.name.equals(s, true), { vm.onNameChange(s) }) }
             }
 
             // ---------- Issued by ----------

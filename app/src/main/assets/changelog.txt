@@ -3,7 +3,8 @@
 # release notes. One "- " line per change, written for the people using the app.
 
 ## 0.9.7
-- Extend a document: open a doctor's report (or anything that grows over time), tap Extend document and add the next report, scan or prescription. The later ones show under the first, newest first, with their pages as you scroll (on the computer too)
+- Supplementary docs: open any document, tap Add supplementary docs and add more papers that belong with it (a later report, a renewal page, an invoice, a letter…), each with its own name. They show under it, newest first, with their pages as you scroll (on the computer too)
+- A document's Edit, Archive, Delete and Add supplementary docs are now a 2 × 2 grid
 
 ## 0.9.6
 - Changes made in the computer apps reach the phone sooner the first time (it looks for them every minute while Lararium is open)

@@ -169,7 +169,8 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
     val app = rememberApp()
     val c = Fd.c
     val toast = LocalToast.current
-    var name by remember { mutableStateOf(doc?.name ?: parent?.name ?: "") }
+    // a supplementary doc gets its own name (a report, an invoice, a renewal page...)
+    var name by remember { mutableStateOf(doc?.name ?: "") }
     val fields = remember {
         mutableStateListOf<DocField>().apply {
             when {
@@ -217,8 +218,8 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
         }
     }
 
-    EditSheet(if (doc != null) "Edit ${doc.name}" else if (parent != null) "Extend ${parent.name}" else if (eventId != null) "Add to the event" else "Add a document",
-        if (parent != null) "The next report, scan or prescription for it: it shows under the first one, newest first."
+    EditSheet(if (doc != null) "Edit ${doc.name}" else if (parent != null) "Supplementary doc for ${parent.name}" else if (eventId != null) "Add to the event" else "Add a document",
+        if (parent != null) "More papers that belong with it: a later report, a renewal page, an invoice, a letter. It shows under ${parent.name}, newest first."
         else if (doc == null) "Pick the scan or PDF and fill in what matters. Your phone takes it over (and backs it up) within seconds while Lararium is open there." else null,
         onDismiss, canSave = name.isNotBlank() && (doc != null || files?.isNotEmpty() == true || fields.any { it.value.isNotBlank() }) && !busyReading,
         missing = when {
@@ -240,8 +241,8 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
             }, close = { onDismiss(); onSaved(newId) })
         }) {
         FdField("Name") { FdInput(name, { name = it; nameFromFile = false; if (doc == null) template(it) }, placeholder = "Passport, Visa, Flight ticket…") }
-        if ((doc == null && parent == null) || name.isBlank()) FdChips {
-            (if (eventId != null) DocTypes.EVENT_SUGGESTIONS else DocTypes.SUGGESTIONS).forEach { s -> FdChip(s, name == s, { name = s; template(s) }) }
+        if (doc == null || name.isBlank()) FdChips {
+            (if (eventId != null) DocTypes.EVENT_SUGGESTIONS else if (parent != null || doc?.parentId != null) DocTypes.SUPPLEMENT_SUGGESTIONS else DocTypes.SUGGESTIONS).forEach { s -> FdChip(s, name == s, { name = s; template(s) }) }
         }
         // ---- the file ----
         FdField(if (doc == null) "Scan or PDF" else "File", hint = when {
