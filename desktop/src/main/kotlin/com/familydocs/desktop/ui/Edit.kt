@@ -174,7 +174,7 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
     val fields = remember {
         mutableStateListOf<DocField>().apply {
             when {
-                doc != null -> addAll(doc.fields)
+                doc != null -> addAll(doc.fields.filterNot { isNotes(it.label) }) // (notes are written on the document's page)
                 parent != null -> { add(DocField("Date", LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")))); add(DocField("Notes", "")) }
                 else -> DocTypes.template("").forEach { add(DocField(it, "")) }
             }
@@ -234,7 +234,8 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
                 val now = System.currentTimeMillis()
                 val row = (doc ?: DocumentEntity(id = newId, memberId = memberId, name = name, fileId = null, fileMime = null,
                     eventId = eventId, createdAt = now, parentId = parentId)).copy(
-                    name = name.trim(), fieldsJson = encodeFields(fields.filter { it.label.isNotBlank() }.map { it.copy(label = it.label.trim(), value = it.value.trim()) }),
+                    name = name.trim(), fieldsJson = encodeFields(fields.filter { it.label.isNotBlank() }.map { it.copy(label = it.label.trim(), value = it.value.trim()) } +
+                        doc?.fields?.filter { isNotes(it.label) }.orEmpty()),
                     country = country, rawText = rawText, readByOcr = readByOcr,
                 )
                 DeskOps.op(DeskOps.DOC).put("doc", DeskOps.docJson(row)).apply { uploaded?.let { put("files", JSONArray(it)) } }

@@ -5,6 +5,7 @@
 ## 0.9.7
 - Supplementary docs: open any document, tap Add supplementary docs and add more papers that belong with it (a later report, a renewal page, an invoice, a letter…), each with its own name. They show under it, newest first, with their pages as you scroll (on the computer too)
 - A document's Edit, Archive, Delete and Add supplementary docs are now a 2 × 2 grid
+- Every document has a Notes section, written right on its page with formatting (bold, italic, lists) and saved as you type
 
 ## 0.9.6
 - Changes made in the computer apps reach the phone sooner the first time (it looks for them every minute while Lararium is open)

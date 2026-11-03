@@ -103,7 +103,8 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
         }
     }
     // Only the details that have a value.
-    val filled = d.fields.filter { it.value.isNotBlank() }
+    // (the notes have their own section below)
+    val filled = d.fields.filter { it.value.isNotBlank() && !isNotes(it.label) }
     // Shared by another member of the group: read-only here (they edit it on their phone).
     val groups by app.repo.groups.collectAsStateWithLifecycle(emptyList())
     val sharedBy = d.origin?.let { o -> groups.flatMap { it.peerList }.firstOrNull { it.key == o }?.name ?: "another member" }
@@ -203,6 +204,25 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                 Text(if (sharedBy != null && admin) "Shared by $sharedBy · as a group admin you can change it; their phone takes it over"
                      else if (sharedBy != null) "Shared by $sharedBy · read-only here, they keep it up to date"
                      else "Added ${fmtDate(d.createdAt)} · ${if (d.readByOcr) "details read from the file" else "entered by hand"}", style = fdText(11.5f, color = c.muted))
+            }
+            // ---- notes: on every document, written right here with formatting, saved a moment after you stop ----
+            val docNotes = d.fields.firstOrNull { isNotes(it.label) }?.value.orEmpty()
+            if (canEdit || docNotes.isNotBlank()) {
+                FdSectionTitle("Notes")
+                var note by remember(d.id) { mutableStateOf(docNotes) }
+                var saved by remember(d.id) { mutableStateOf(docNotes) }
+                androidx.compose.runtime.LaunchedEffect(docNotes) { if (docNotes != saved) { if (note == saved) note = docNotes; saved = docNotes } }
+                androidx.compose.runtime.LaunchedEffect(note) {
+                    if (note.trim() == docNotes.trim()) return@LaunchedEffect
+                    kotlinx.coroutines.delay(800)
+                    saved = note
+                    val rest = d.fields.filterNot { isNotes(it.label) }
+                    runCatching { app.repo.saveDocument(d, rest + listOfNotNull(note.trim().takeIf { it.isNotEmpty() }?.let { com.familydocs.app.domain.DocField("Notes", it, sensitive = false) })) }
+                        .onFailure { toast.show(it.message ?: "Couldn't save the notes") }
+                }
+                if (canEdit) com.familydocs.app.ui.ds.FdNotesField(note, { note = it }, Modifier.padding(horizontal = 20.dp), placeholder = "Anything worth remembering about it (saved as you type)")
+                else Text(com.familydocs.app.ui.ds.NoteFormat.reading(docNotes).text, style = fdText(14.5f, color = c.fg),
+                    modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(14.dp)).padding(12.dp))
             }
             // ---- supplementary docs: each one's pages as you scroll, newest first ----
             if (supplements.isNotEmpty()) {
@@ -320,7 +340,7 @@ private fun Supplement(d: com.familydocs.app.data.DocumentEntity, onOpen: () -> 
         pages.forEach { p ->
             Image(p, d.name, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, c.line, RoundedCornerShape(12.dp)), contentScale = ContentScale.FillWidth)
         }
-        d.fields.firstOrNull { it.label.equals("Notes", true) && it.value.isNotBlank() }?.let { Text(it.value, style = fdText(13f, color = c.fg)) }
+        d.fields.firstOrNull { isNotes(it.label) && it.value.isNotBlank() }?.let { Text(com.familydocs.app.ui.ds.NoteFormat.reading(it.value).text, style = fdText(13f, color = c.fg)) }
     }
 }
 
@@ -338,3 +358,6 @@ private fun ActionTile(t: ActionTileSpec, modifier: Modifier) {
         Text(t.label, style = fdText(13.5f, FontWeight.SemiBold, tint), maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
+
+/** The "Notes" detail: shown as its own section, not among the details. */
+internal fun isNotes(label: String) = label.trim().equals("Notes", ignoreCase = true) || label.trim().equals("Note", ignoreCase = true)

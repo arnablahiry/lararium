@@ -93,7 +93,8 @@ fun DocumentPage(view: GroupView, id: String) {
     val parent = d.parentId?.let { view.doc(it) }
     val app = com.familydocs.desktop.rememberApp()
     val editable = view.canEdit(d)
-    val filled = d.fields.filter { it.value.isNotBlank() }
+    // (the notes have their own section)
+    val filled = d.fields.filter { it.value.isNotBlank() && !isNotes(it.label) }
     val scroll = rememberScrollState()
 
     Box(Modifier.fillMaxSize()) {
@@ -160,6 +161,29 @@ fun DocumentPage(view: GroupView, id: String) {
                             FdIcon(if (sharedBy != null) "people" else if (d.readByOcr) "sparkle" else "edit", 14.dp, tint = c.muted)
                             Text(if (sharedBy != null) "Shared by $sharedBy" else "Added ${fmtDate(d.createdAt)} · ${if (d.readByOcr) "details read from the file" else "entered by hand"}",
                                 style = fdText(11.5f, color = c.muted))
+                        }
+                        // ---- notes: on every document, written right here with formatting, saved a moment after you stop ----
+                        val docNotes = d.fields.firstOrNull { isNotes(it.label) }?.value.orEmpty()
+                        if (editable || docNotes.isNotBlank()) {
+                            var note by remember(d.id) { mutableStateOf(docNotes) }
+                            var seen by remember(d.id) { mutableStateOf(docNotes) }
+                            if (docNotes != seen) { if (note.trim() == seen.trim()) note = docNotes; seen = docNotes }
+                            fun saveNotes() {
+                                val n = note.trim()
+                                if (n == docNotes.trim()) return
+                                val rest = d.fields.filterNot { isNotes(it.label) }
+                                val all = rest + listOfNotNull(n.takeIf { it.isNotEmpty() }?.let { com.familydocs.app.domain.DocField("Notes", it, sensitive = false) })
+                                app.edit({ com.familydocs.app.domain.DeskOps.op(com.familydocs.app.domain.DeskOps.DOC)
+                                    .put("doc", com.familydocs.app.domain.DeskOps.docJson(d.copy(fieldsJson = com.familydocs.app.data.encodeFields(all)))) }) { err -> err?.let { toast.show(it) } }
+                            }
+                            FdSectionTitle("Notes", Modifier.padding(start = 0.dp)) {
+                                if (note.trim() != docNotes.trim()) Text("Saving soon…", style = fdText(11f, FontWeight.Medium, c.muted))
+                            }
+                            if (editable) {
+                                androidx.compose.runtime.LaunchedEffect(note) { kotlinx.coroutines.delay(2000); saveNotes() }
+                                com.familydocs.app.ui.ds.FdNotesField(note, { note = it }, placeholder = "Anything worth remembering about it", onDone = { saveNotes() })
+                            } else Text(com.familydocs.app.ui.ds.NoteFormat.reading(docNotes).text, style = fdText(14.5f, color = c.fg),
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(14.dp)).padding(12.dp))
                         }
                         // the document's actions as a 2 x 2 grid of tiles
                         if (editable) {
@@ -258,7 +282,7 @@ private fun Supplement(d: DocumentEntity, onOpen: () -> Unit) {
         value = withContext(Dispatchers.IO) { d.attachments.take(4).flatMap { a -> Files.get(a.id)?.let { pagesOf(a, it).take(3) }.orEmpty() } }
     }
     val date = d.fields.firstOrNull { it.label.equals("Date", true) }?.value?.takeIf { it.isNotBlank() } ?: fmtDate(d.createdAt)
-    val notes = d.fields.firstOrNull { it.label.equals("Notes", true) }?.value?.takeIf { it.isNotBlank() }
+    val notes = d.fields.firstOrNull { isNotes(it.label) }?.value?.takeIf { it.isNotBlank() }
     Column(Modifier.fillMaxWidth().appear(0, "supp-${d.id}").clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))
         .clickable(onClick = onOpen).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -296,3 +320,6 @@ private fun ActionTile(t: Tile, modifier: Modifier, enabled: Boolean) {
         Text(t.label, style = fdText(14f, FontWeight.SemiBold, tint), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
+
+/** The "Notes" detail: shown as its own section, not among the details. */
+internal fun isNotes(label: String) = label.trim().equals("Notes", ignoreCase = true) || label.trim().equals("Note", ignoreCase = true)
