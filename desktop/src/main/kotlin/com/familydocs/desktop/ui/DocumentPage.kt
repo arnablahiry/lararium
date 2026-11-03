@@ -186,13 +186,18 @@ fun DocumentPage(view: GroupView, id: String) {
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(14.dp)).padding(12.dp))
                         }
                         // the document's actions as a 2 x 2 grid of tiles
-                        if (editable) {
+                        // (the file's own buttons join the grid, so every tile lines up with the same gaps)
+                        if (editable || d.attachments.isNotEmpty()) {
                             val tiles = buildList<Tile> {
-                                add(Tile("edit", "Edit") { editing = true })
-                                if (d.eventId == null) add(Tile("archive", if (d.archived) "Unarchive" else "Archive") { app.setArchived(toast, d, !d.archived) })
-                                add(Tile("trash", "Delete", danger = true) { deleting = true })
+                                if (d.attachments.isNotEmpty()) {
+                                    add(Tile("eye", com.familydocs.desktop.Platform.openLabel) { open(d) })
+                                    add(Tile("download", "Save a copy…") { save(d)?.let { toast.show(it) } })
+                                }
+                                if (editable) add(Tile("edit", "Edit") { editing = true })
+                                if (editable && d.eventId == null) add(Tile("archive", if (d.archived) "Unarchive" else "Archive") { app.setArchived(toast, d, !d.archived) })
+                                if (editable) add(Tile("trash", "Delete", danger = true) { deleting = true })
                                 // more papers that belong with this one: a later report, a renewal page, an invoice, a letter...
-                                if (d.parentId == null && d.eventId == null) add(Tile("plus", "Add supplementary docs") { extending = true })
+                                if (editable && d.parentId == null && d.eventId == null) add(Tile("plus", "Supplementary docs") { extending = true })
                             }
                             Column(Modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 tiles.chunked(2).forEach { row ->
@@ -202,10 +207,6 @@ fun DocumentPage(view: GroupView, id: String) {
                                     }
                                 }
                             }
-                        }
-                        if (d.attachments.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            FdButton(com.familydocs.desktop.Platform.openLabel, { open(d) }, Modifier.weight(1f), BtnKind.Ghost, icon = "eye")
-                            FdButton("Save a copy…", { save(d)?.let { toast.show(it) } }, Modifier.weight(1f), BtnKind.Ghost, icon = "download")
                         }
                     }
                 }
