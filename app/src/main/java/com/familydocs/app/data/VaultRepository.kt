@@ -260,7 +260,7 @@ class VaultRepository(private val dao: VaultDao, val files: FileStore) {
 
     fun supplements(parentId: String) = dao.supplements(parentId)
 
-    suspend fun deleteDocument(id: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteDocument(id: String): Unit = withContext(Dispatchers.IO) {
         // its later reports go with it
         dao.supplementsNow(id).forEach { s -> runCatching { deleteDocument(s.id) } }
         dao.documentNow(id)?.let { d -> if (d.origin != null) admin()?.deleteDoc(d, dao.memberNow(d.memberId)) ?: error("Only a group admin can remove this") }
