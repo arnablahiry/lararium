@@ -116,6 +116,7 @@ object Vault {
                                         eventId = dj.str("event"), showFlag = if (!dj.has("flag") || dj.isNull("flag")) null else dj.getBoolean("flag"),
                                         moreFiles = Attachment.encode(more), sortOrder = order[dj.getString("id")],
                                         archivedAt = if (!dj.has("archived") || dj.isNull("archived")) null else dj.getLong("archived"),
+                                        parentId = dj.str("parent"),
                                     )
                                 }
                             }
@@ -191,7 +192,8 @@ object Vault {
                     val atts = d.optJSONArray("files").objs().map { Attachment(file(it.getString("f"))!!, it.optString("mime", "image/jpeg")) }
                     docs += sharedDoc(d, prefix + d.getString("id"), member, atts, file(d.str("picture")), p.key, eventId = null)
                         .copy(sortOrder = if (d.isNull("order")) null else d.optInt("order"),
-                            archivedAt = if (!d.has("archived") || d.isNull("archived")) null else d.getLong("archived"))
+                            archivedAt = if (!d.has("archived") || d.isNull("archived")) null else d.getLong("archived"),
+                            parentId = d.str("parent")?.let { prefix + it })
                 }
                 // their events that you can see
                 fun person(o: JSONObject): String? = personRef(o, me, common?.id, g.id)

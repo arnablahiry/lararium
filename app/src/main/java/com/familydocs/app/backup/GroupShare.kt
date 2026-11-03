@@ -270,7 +270,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
                 JSONObject().put("id", d.id).put("member", d.memberId).put("name", d.name).put("fields", d.fieldsJson).put("text", d.rawText)
                     .put("ocr", d.readByOcr).put("country", d.country ?: JSONObject.NULL).put("display", d.display.name)
                     .put("flag", d.showFlag ?: JSONObject.NULL).put("created", d.createdAt).put("updated", d.updatedAt).put("order", d.sortOrder ?: JSONObject.NULL)
-                    .put("archived", d.archivedAt ?: JSONObject.NULL)
+                    .put("archived", d.archivedAt ?: JSONObject.NULL).put("parent", d.parentId ?: JSONObject.NULL)
                     .put("files", JSONArray(d.attachments.mapNotNull { a -> upload(a.id)?.let { JSONObject().put("f", it).put("mime", a.mime) } }))
                     .put("picture", upload(d.pictureFile) ?: JSONObject.NULL)
             }))
@@ -460,6 +460,7 @@ class GroupShare(private val context: Context, private val dao: VaultDao, privat
                 showFlag = if (d.isNull("flag")) null else d.getBoolean("flag"), moreFiles = Attachment.encode(atts.drop(1)),
                 sortOrder = if (d.isNull("order")) null else d.getInt("order"), origin = p.key,
                 archivedAt = if (!d.has("archived") || d.isNull("archived")) null else d.getLong("archived"),
+                parentId = d.optStringOrNull("parent")?.let { prefix + it },
             ))
             changed++
         }

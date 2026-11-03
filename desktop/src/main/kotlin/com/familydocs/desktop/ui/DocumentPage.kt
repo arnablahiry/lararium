@@ -87,6 +87,9 @@ fun DocumentPage(view: GroupView, id: String) {
     }
     var zoom by remember { mutableStateOf<Int?>(null) }
     var editing by remember { mutableStateOf(false) }
+    var extending by remember { mutableStateOf(false) }
+    val supplements = view.supplements(d.id)
+    val parent = d.parentId?.let { view.doc(it) }
     val app = com.familydocs.desktop.rememberApp()
     val editable = view.canEdit(d)
     val filled = d.fields.filter { it.value.isNotBlank() }
@@ -134,6 +137,9 @@ fun DocumentPage(view: GroupView, id: String) {
                             }
                         }
                         if (d.archived) FdBanner("archive", "Archived ${fmtDate(d.archivedAt ?: 0L)} · kept for reference", Modifier.padding(top = 14.dp))
+                        parent?.let { p -> FdBanner("file", "Added to ${p.name}", Modifier.padding(top = 14.dp)) {
+                            com.familydocs.app.ui.ds.FdTextButton("Open", { app.go(com.familydocs.desktop.Page.Doc(p.id)) })
+                        } }
                         FdSectionTitle("Details", Modifier.padding(start = 0.dp)) { Text("${filled.size} field${if (filled.size == 1) "" else "s"}", style = fdText(11f, FontWeight.Medium, c.muted)) }
                         if (filled.isEmpty()) FdEmpty("No details saved.")
                         else Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))) {
@@ -159,11 +165,19 @@ fun DocumentPage(view: GroupView, id: String) {
                             if (d.eventId == null) FdButton(if (d.archived) "Back to the wallet" else "Archive", { app.setArchived(toast, d, !d.archived) }, Modifier.weight(1f),
                                 BtnKind.Ghost, icon = "archive", enabled = !app.saving)
                         }
+                        // a doctor's report and the visits after it: the next report goes with this one
+                        if (editable && d.parentId == null && d.eventId == null)
+                            FdButton("Extend document", { extending = true }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = "plus")
                         if (d.attachments.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             FdButton(com.familydocs.desktop.Platform.openLabel, { open(d) }, Modifier.weight(1f), BtnKind.Ghost, icon = "eye")
                             FdButton("Save a copy…", { save(d)?.let { toast.show(it) } }, Modifier.weight(1f), BtnKind.Ghost, icon = "download")
                         }
                     }
+                }
+                // ---- later reports (Extend): each one's pages as you scroll, newest first ----
+                if (supplements.isNotEmpty()) {
+                    FdSectionTitle("Added later", Modifier.padding(start = 0.dp, top = 18.dp)) { Text("${supplements.size}", style = fdText(11f, FontWeight.Medium, c.muted)) }
+                    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) { supplements.forEach { s -> Supplement(s) { app.go(com.familydocs.desktop.Page.Doc(s.id)) } } }
                 }
             }
         }
@@ -171,6 +185,7 @@ fun DocumentPage(view: GroupView, id: String) {
     }
 
     if (editing) DocEditSheet(view, d, d.memberId, d.eventId, onDismiss = { editing = false })
+    if (extending) DocEditSheet(view, null, d.memberId, parentId = d.id, onDismiss = { extending = false })
 
     // the page, as big as the window allows
     zoom?.let { i ->
@@ -215,4 +230,37 @@ private fun save(d: DocumentEntity): String? {
         java.io.File(dir, name).writeBytes(bytes); n++
     }
     return if (n == 0) null else "Saved ${if (n == 1) "the file" else "$n files"}"
+}
+
+/** One report added later: its name, date and notes, then its pages; click to open it on its own. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun Supplement(d: DocumentEntity, onOpen: () -> Unit) {
+    val c = Fd.c
+    val pages by produceState<List<ImageBitmap>?>(null, d.id, d.fileId, d.moreFiles) {
+        value = withContext(Dispatchers.IO) { d.attachments.take(4).flatMap { a -> Files.get(a.id)?.let { pagesOf(a, it).take(3) }.orEmpty() } }
+    }
+    val date = d.fields.firstOrNull { it.label.equals("Date", true) }?.value?.takeIf { it.isNotBlank() } ?: fmtDate(d.createdAt)
+    val notes = d.fields.firstOrNull { it.label.equals("Notes", true) }?.value?.takeIf { it.isNotBlank() }
+    Column(Modifier.fillMaxWidth().appear(0, "supp-${d.id}").clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.line, RoundedCornerShape(18.dp))
+        .clickable(onClick = onOpen).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FdDocIcon(d, 40.dp)
+            Column(Modifier.weight(1f)) {
+                Text(d.name, style = fdText(15f, FontWeight.SemiBold))
+                Text(listOfNotNull(date, d.attachments.size.takeIf { it > 0 }?.let { "$it file${if (it == 1) "" else "s"}" }).joinToString(" · "), style = fdText(12f, color = c.muted))
+            }
+            FdIcon("chev", 16.dp, tint = c.muted)
+        }
+        notes?.let { Text(com.familydocs.app.ui.ds.NoteFormat.reading(it).text, style = fdText(13.5f, color = c.fg)) }
+        when {
+            d.attachments.isEmpty() -> {}
+            pages == null -> FdProgress()
+            else -> androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                pages!!.forEach { p ->
+                    Image(p, d.name, Modifier.widthIn(max = 520.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, c.line, RoundedCornerShape(12.dp)), contentScale = ContentScale.FillWidth)
+                }
+            }
+        }
+    }
 }

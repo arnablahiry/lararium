@@ -37,7 +37,9 @@ sealed interface OcrState {
     data class Failed(val message: String) : OcrState
 }
 
-class AddDocumentViewModel(private val c: AppContainer, private val appContext: Context, private val memberId: String, private val docId: String?, private val eventId: String? = null) : ViewModel() {
+class AddDocumentViewModel(private val c: AppContainer, private val appContext: Context, private val memberId: String, private val docId: String?, private val eventId: String? = null,
+                           /** Extending that document: this one is a later report added to it. */
+                           private val parentId: String? = null) : ViewModel() {
     var name by mutableStateOf("")
     /** Added to an event (tickets, hotel bookings, passes…): offers those document types. */
     val forEvent: Boolean get() = eventId != null || existing?.eventId != null
@@ -67,6 +69,15 @@ class AddDocumentViewModel(private val c: AppContainer, private val appContext: 
     private var ocrJob: Job? = null
 
     init {
+        // the next report for a document (Extend): same kind (so the same icon), today's date and room for notes
+        if (docId == null && parentId != null) viewModelScope.launch {
+            val p = c.repo.documentNow(parentId) ?: return@launch
+            name = p.name; countryChoice = p.country
+            fields.clear()
+            fields.add(EditField(label = "Date", value = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))))
+            fields.add(EditField(label = "Notes", value = ""))
+            fieldsTouched = true
+        }
         if (docId != null) viewModelScope.launch {
             val d = c.repo.documentNow(docId) ?: return@launch
             existing = d
@@ -179,7 +190,7 @@ class AddDocumentViewModel(private val c: AppContainer, private val appContext: 
                     else -> old?.pictureFile
                 }
             }
-            val doc = (old ?: DocumentEntity(id = UUID.randomUUID().toString(), memberId = memberId, name = name, fileId = null, fileMime = null, eventId = eventId)).copy(
+            val doc = (old ?: DocumentEntity(id = UUID.randomUUID().toString(), memberId = memberId, name = name, fileId = null, fileMime = null, eventId = eventId, parentId = parentId)).copy(
                 name = name.trim(), fileId = fileId, fileMime = stored.firstOrNull()?.mime, moreFiles = Attachment.encode(stored.drop(1)), display = display, pictureFile = pictureId,
                 rawText = rawText, readByOcr = ocr is OcrState.Done, country = country, showFlag = showFlagChoice,
             )
@@ -190,7 +201,7 @@ class AddDocumentViewModel(private val c: AppContainer, private val appContext: 
             // (another member's document and you're no longer an admin)
             r.exceptionOrNull()?.let { android.widget.Toast.makeText(appContext, it.message ?: "Couldn't save", android.widget.Toast.LENGTH_LONG).show(); return@launch }
             // a renewed passport, licence…: offer to put the old one away
-            if (old == null) c.repo.replacedBy(doc).takeIf { it.isNotEmpty() }?.let { c.archiveOffer.value = doc.name to it.map { d -> d.id } }
+            if (old == null && parentId == null) c.repo.replacedBy(doc).takeIf { it.isNotEmpty() }?.let { c.archiveOffer.value = doc.name to it.map { d -> d.id } }
             onSaved()
         }
     }

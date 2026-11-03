@@ -43,7 +43,10 @@ interface VaultDao {
     @Transaction
     suspend fun deleteMember(id: String) { deleteDocumentsOf(id); deletePasswordsOf(id); deleteMemberRow(id) }
 
-    @Query("SELECT * FROM documents WHERE memberId = :memberId AND eventId IS NULL ORDER BY sortOrder IS NULL, sortOrder, createdAt") fun documents(memberId: String): Flow<List<DocumentEntity>>
+    @Query("SELECT * FROM documents WHERE memberId = :memberId AND eventId IS NULL AND parentId IS NULL ORDER BY sortOrder IS NULL, sortOrder, createdAt") fun documents(memberId: String): Flow<List<DocumentEntity>>
+    /** The later reports added to document [parentId], newest first. */
+    @Query("SELECT * FROM documents WHERE parentId = :parentId ORDER BY createdAt DESC") fun supplements(parentId: String): Flow<List<DocumentEntity>>
+    @Query("SELECT * FROM documents WHERE parentId = :parentId") suspend fun supplementsNow(parentId: String): List<DocumentEntity>
     @Query("UPDATE documents SET sortOrder = :order WHERE id = :id") suspend fun setDocumentOrder(id: String, order: Int)
     @Query("SELECT * FROM documents ORDER BY createdAt") fun allDocuments(): Flow<List<DocumentEntity>>
     @Query("SELECT * FROM documents") suspend fun allDocumentsNow(): List<DocumentEntity>
@@ -52,7 +55,7 @@ interface VaultDao {
     @Query("SELECT * FROM documents WHERE id = :id") suspend fun documentNow(id: String): DocumentEntity?
     @Upsert suspend fun upsertDocument(d: DocumentEntity)
     @Query("DELETE FROM documents WHERE id = :id") suspend fun deleteDocument(id: String)
-    @Query("SELECT memberId, COUNT(*) AS n FROM documents WHERE eventId IS NULL AND archivedAt IS NULL GROUP BY memberId") fun documentCounts(): Flow<List<MemberCount>>
+    @Query("SELECT memberId, COUNT(*) AS n FROM documents WHERE eventId IS NULL AND archivedAt IS NULL AND parentId IS NULL GROUP BY memberId") fun documentCounts(): Flow<List<MemberCount>>
 
     // ---- events ----
     @Query("SELECT * FROM events ORDER BY startDay") fun events(): Flow<List<EventEntity>>

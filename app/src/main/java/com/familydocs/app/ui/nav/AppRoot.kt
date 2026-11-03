@@ -135,18 +135,20 @@ private fun VaultNav() {
         }
         composable("doc/{id}", idArg) { e ->
             val id = e.arguments!!.getString("id")!!
-            DocumentScreen(id, onBack = { nav.popBackStack() }, onEdit = { memberId -> nav.navigate("doc-edit/$memberId?docId=$id") })
+            DocumentScreen(id, onBack = { nav.popBackStack() }, onEdit = { memberId -> nav.navigate("doc-edit/$memberId?docId=$id") },
+                onExtend = { memberId -> nav.navigate("doc-edit/$memberId?parentId=$id") }, onOpen = { nav.navigate("doc/$it") })
         }
         composable(
-            "doc-edit/{memberId}?docId={docId}&eventId={eventId}",
+            "doc-edit/{memberId}?docId={docId}&eventId={eventId}&parentId={parentId}",
             listOf(
                 navArgument("memberId") { type = NavType.StringType },
                 navArgument("docId") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("eventId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("parentId") { type = NavType.StringType; nullable = true; defaultValue = null },
             ),
         ) { e ->
             AddDocumentScreen(e.arguments!!.getString("memberId")!!, e.arguments?.getString("docId"), onBack = { nav.popBackStack() },
-                onSaved = { nav.popBackStack(); toast.show("Saved") }, eventId = e.arguments?.getString("eventId"))
+                onSaved = { nav.popBackStack(); toast.show("Saved") }, eventId = e.arguments?.getString("eventId"), parentId = e.arguments?.getString("parentId"))
         }
         composable("event/{id}", idArg) { e ->
             val id = e.arguments!!.getString("id")!!

@@ -2,6 +2,9 @@
 # the app shows it once after updating, Settings lists it under "Update" before downloading, and CI puts it in the
 # release notes. One "- " line per change, written for the people using the app.
 
+## 0.9.7
+- Extend a document: open a doctor's report (or anything that grows over time), tap Extend document and add the next report, scan or prescription. The later ones show under the first, newest first, with their pages as you scroll (on the computer too)
+
 ## 0.9.6
 - Changes made in the computer apps reach the phone sooner the first time (it looks for them every minute while Lararium is open)
 - Computer apps: the Open dialog for adding a scan or photo now always comes up in front of the window; dates are picked on a calendar; Touch ID / Windows Hello unlock

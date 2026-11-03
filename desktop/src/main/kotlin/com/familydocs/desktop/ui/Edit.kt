@@ -162,13 +162,22 @@ fun AppModel.save(toast: com.familydocs.app.ui.ds.FdToastState, said: String, bu
  * and files. Saved here at once and taken over by the phone.
  */
 @Composable
-fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventId: String? = null, onDismiss: () -> Unit, onSaved: (String) -> Unit = {}) {
+fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventId: String? = null, onDismiss: () -> Unit, onSaved: (String) -> Unit = {},
+                 /** Extending that document: this one is a later report added to it (same kind, today's date, notes). */
+                 parentId: String? = null) {
+    val parent = parentId?.let { view.doc(it) }
     val app = rememberApp()
     val c = Fd.c
     val toast = LocalToast.current
-    var name by remember { mutableStateOf(doc?.name ?: "") }
+    var name by remember { mutableStateOf(doc?.name ?: parent?.name ?: "") }
     val fields = remember {
-        mutableStateListOf<DocField>().apply { if (doc != null) addAll(doc.fields) else DocTypes.template("").forEach { add(DocField(it, "")) } }
+        mutableStateListOf<DocField>().apply {
+            when {
+                doc != null -> addAll(doc.fields)
+                parent != null -> { add(DocField("Date", LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")))); add(DocField("Notes", "")) }
+                else -> DocTypes.template("").forEach { add(DocField(it, "")) }
+            }
+        }
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // read from the scan, as on the phone
@@ -176,9 +185,9 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
     var readByOcr by remember { mutableStateOf(doc?.readByOcr ?: false) }
     var reading by remember { mutableStateOf<String?>(null) }
     var busyReading by remember { mutableStateOf(false) }
-    var touched by remember { mutableStateOf(doc != null) }
+    var touched by remember { mutableStateOf(doc != null || parent != null) }
     var nameFromFile by remember { mutableStateOf(false) }
-    var country by remember { mutableStateOf(doc?.country ?: doc?.issuer?.takeIf { it.isNotEmpty() }) }
+    var country by remember { mutableStateOf(doc?.country ?: doc?.issuer?.takeIf { it.isNotEmpty() } ?: parent?.country) }
     var files by remember { mutableStateOf<List<Picked>?>(null) }
     var deleting by remember { mutableStateOf(false) }
     var otherCountry by remember { mutableStateOf(false) }
@@ -208,8 +217,9 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
         }
     }
 
-    EditSheet(if (doc == null) (if (eventId != null) "Add to the event" else "Add a document") else "Edit ${doc.name}",
-        if (doc == null) "Pick the scan or PDF and fill in what matters. Your phone takes it over (and backs it up) within seconds while Lararium is open there." else null,
+    EditSheet(if (doc != null) "Edit ${doc.name}" else if (parent != null) "Extend ${parent.name}" else if (eventId != null) "Add to the event" else "Add a document",
+        if (parent != null) "The next report, scan or prescription for it: it shows under the first one, newest first."
+        else if (doc == null) "Pick the scan or PDF and fill in what matters. Your phone takes it over (and backs it up) within seconds while Lararium is open there." else null,
         onDismiss, canSave = name.isNotBlank() && (doc != null || files?.isNotEmpty() == true || fields.any { it.value.isNotBlank() }) && !busyReading,
         missing = when {
             busyReading -> "Reading the document…"
@@ -222,7 +232,7 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
                 val uploaded = files?.map { f -> JSONObject().put("f", Desk.upload(f.bytes)).put("mime", f.mime) }
                 val now = System.currentTimeMillis()
                 val row = (doc ?: DocumentEntity(id = newId, memberId = memberId, name = name, fileId = null, fileMime = null,
-                    eventId = eventId, createdAt = now)).copy(
+                    eventId = eventId, createdAt = now, parentId = parentId)).copy(
                     name = name.trim(), fieldsJson = encodeFields(fields.filter { it.label.isNotBlank() }.map { it.copy(label = it.label.trim(), value = it.value.trim()) }),
                     country = country, rawText = rawText, readByOcr = readByOcr,
                 )
@@ -230,7 +240,7 @@ fun DocEditSheet(view: GroupView, doc: DocumentEntity?, memberId: String, eventI
             }, close = { onDismiss(); onSaved(newId) })
         }) {
         FdField("Name") { FdInput(name, { name = it; nameFromFile = false; if (doc == null) template(it) }, placeholder = "Passport, Visa, Flight ticket…") }
-        if (doc == null || name.isBlank()) FdChips {
+        if ((doc == null && parent == null) || name.isBlank()) FdChips {
             (if (eventId != null) DocTypes.EVENT_SUGGESTIONS else DocTypes.SUGGESTIONS).forEach { s -> FdChip(s, name == s, { name = s; template(s) }) }
         }
         // ---- the file ----

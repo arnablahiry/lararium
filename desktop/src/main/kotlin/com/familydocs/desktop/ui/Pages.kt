@@ -206,7 +206,7 @@ fun PersonPage(view: GroupView, id: String) {
     val c = Fd.c
     val m = view.member(id) ?: run { FdEmpty("This person isn't in this group."); return }
     val all = view.docs.filter { it.memberId == id }.sortedWith(compareBy({ it.sortOrder ?: Int.MAX_VALUE }, { it.createdAt }))
-    val archived = view.allDocs.filter { it.memberId == id && it.archived && it.eventId == null }
+    val archived = view.allDocs.filter { it.memberId == id && it.archived && it.eventId == null && it.parentId == null }
     var look by remember { mutableStateOf(VaultLook.CARDS) }
     var showArchived by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }

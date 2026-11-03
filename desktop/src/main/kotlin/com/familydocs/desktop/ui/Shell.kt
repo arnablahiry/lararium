@@ -73,7 +73,9 @@ class GroupView(val data: VaultData, val group: GroupEntity?) {
     private val ids = members.map { it.id }.toSet()
     val allDocs: List<DocumentEntity> = data.docs.filter { it.memberId in ids }
     /** In the wallet: not event tickets, not archived. */
-    val docs: List<DocumentEntity> = allDocs.filter { it.eventId == null && !it.archived }
+    val docs: List<DocumentEntity> = allDocs.filter { it.eventId == null && !it.archived && it.parentId == null }
+    /** The later reports added to document [id] (Extend), newest first. */
+    fun supplements(id: String) = allDocs.filter { it.parentId == id }.sortedByDescending { it.createdAt }
     val events: List<EventEntity> = data.events.filter { e -> e.groupId == group?.id && (e.visibleIds.isEmpty() || data.me == null || data.me in e.visibleIds) }
     fun member(id: String?) = data.members.firstOrNull { it.id == id }
     fun doc(id: String?) = data.docs.firstOrNull { it.id == id }

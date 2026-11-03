@@ -75,7 +75,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String) -> Unit) {
+fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String) -> Unit, onExtend: (memberId: String) -> Unit = {},
+                   onOpen: (String) -> Unit = {}) {
     val app = LocalContainer.current
     val c = Fd.c
     val context = LocalContext.current
@@ -84,6 +85,9 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
     val doc by app.repo.document(docId).collectAsStateWithLifecycle(null)
     val d = doc ?: return
     val member by app.repo.member(d.memberId).collectAsStateWithLifecycle(null)
+    // later reports added to this one (Extend), and the one this is part of
+    val supplements by remember(d.id) { app.repo.supplements(d.id) }.collectAsStateWithLifecycle(emptyList())
+    val parent by (d.parentId?.let { app.repo.document(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsStateWithLifecycle(null)
     var zoomed by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     // Every page of every file (front, back, PDF pages…), in order.
@@ -144,6 +148,9 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                     Text(listOfNotNull(member?.name, member?.let { if (it.shared) "Shared" else it.relation }).joinToString(" · "), style = fdText(12f, color = c.muted))
                 }
             }
+            parent?.let { p -> FdBanner("file", "Added to ${p.name}", Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp)) {
+                com.familydocs.app.ui.ds.FdTextButton("Open", { onOpen(p.id) })
+            } }
             // `.docimg`
             if (pages.isNotEmpty()) {
                 val pager = rememberPagerState { pages.size }
@@ -196,6 +203,11 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                      else if (sharedBy != null) "Shared by $sharedBy · read-only here, they keep it up to date"
                      else "Added ${fmtDate(d.createdAt)} · ${if (d.readByOcr) "details read from the file" else "entered by hand"}", style = fdText(11.5f, color = c.muted))
             }
+            // ---- later reports (Extend): each one's pages as you scroll, newest first ----
+            if (supplements.isNotEmpty()) {
+                FdSectionTitle("Added later") { Text("${supplements.size}", style = fdText(11f, FontWeight.Medium, c.muted)) }
+                supplements.forEach { s -> Supplement(s, onOpen = { onOpen(s.id) }) }
+            }
             // put away (an old one, replaced by a renewed document)
             if (d.archived) FdBanner("archive", "Archived ${fmtDate(d.archivedAt ?: 0L)} · kept for reference, out of the wallet and expiry reminders",
                 Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp)) {
@@ -208,6 +220,8 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
                     FdButton("Delete", { confirmDelete = true }, Modifier.weight(1f), BtnKind.Ghost, icon = "trash", contentColor = c.danger)
                 }
                 // on its own line: three buttons side by side don't fit their words on a phone
+                // a doctor's report and the visits after it: the next report goes with this one
+                if (!d.supplement && d.eventId == null) FdButton("Extend document", { onExtend(d.memberId) }, icon = "plus")
                 if (!d.archived) FdButton("Archive", { scope.launch { runCatching { app.repo.setArchived(d.id, true) }.onSuccess { toast.show("Archived"); onBack() }.onFailure { toast.show(it.message ?: "Couldn't archive") } } },
                     kind = BtnKind.Ghost, icon = "archive")
             }
@@ -261,4 +275,39 @@ fun DocumentScreen(docId: String, onBack: () -> Unit, onEdit: (memberId: String)
         } },
         onDismiss = { confirmDelete = false },
     )
+}
+
+/** One report added later: its name and date, then its pages (tap to open it). */
+@Composable
+private fun Supplement(d: com.familydocs.app.data.DocumentEntity, onOpen: () -> Unit) {
+    val app = LocalContainer.current
+    val c = Fd.c
+    val context = LocalContext.current
+    val pages by produceState<List<ImageBitmap>>(emptyList(), d.fileId, d.moreFiles) {
+        value = withContext(Dispatchers.IO) {
+            d.attachments.take(3).flatMap { a ->
+                app.files.get(a.id)?.let { bytes ->
+                    if (a.mime == "application/pdf") Images.renderPdf(context, bytes, pages = 2).map { it.asImageBitmap() }
+                    else listOfNotNull(Images.decode(bytes, 1400)?.asImageBitmap())
+                }.orEmpty()
+            }
+        }
+    }
+    val date = d.fields.firstOrNull { com.familydocs.app.ocr.FieldKeys.canonical(it.label) == "date" || it.label.equals("Date", true) }?.value?.takeIf { it.isNotBlank() }
+        ?: fmtDate(d.createdAt)
+    Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+        .border(1.dp, c.line, RoundedCornerShape(18.dp)).clickable(onClick = onOpen).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FdDocIcon(d, 36.dp)
+            Column(Modifier.weight(1f)) {
+                Text(d.name, style = fdText(14.5f, FontWeight.SemiBold))
+                Text(listOfNotNull(date, d.attachments.size.takeIf { it > 0 }?.let { "$it page${if (it == 1) "" else "s"}" }).joinToString(" · "), style = fdText(12f, color = c.muted))
+            }
+            FdIcon("chev", 16.dp, tint = c.muted)
+        }
+        pages.forEach { p ->
+            Image(p, d.name, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, c.line, RoundedCornerShape(12.dp)), contentScale = ContentScale.FillWidth)
+        }
+        d.fields.firstOrNull { it.label.equals("Notes", true) && it.value.isNotBlank() }?.let { Text(it.value, style = fdText(13f, color = c.fg)) }
+    }
 }

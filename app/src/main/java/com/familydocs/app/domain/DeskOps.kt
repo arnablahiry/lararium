@@ -41,6 +41,7 @@ object DeskOps {
         .put("fields", d.fieldsJson).put("text", d.rawText).put("ocr", d.readByOcr).put("country", d.country ?: JSONObject.NULL)
         .put("display", d.display.name).put("flag", d.showFlag ?: JSONObject.NULL).put("event", d.eventId ?: JSONObject.NULL)
         .put("archived", d.archivedAt ?: JSONObject.NULL).put("created", d.createdAt)
+        .put("parent", d.parentId ?: JSONObject.NULL)
 
     /** [base] (the phone's copy, if any) with the details from [j]; files are left as they are. */
     fun docFrom(j: JSONObject, base: DocumentEntity?): DocumentEntity {
@@ -52,6 +53,7 @@ object DeskOps {
             display = runCatching { DisplayMode.valueOf(j.getString("display")) }.getOrDefault(row.display),
             showFlag = if (!j.has("flag") || j.isNull("flag")) null else j.getBoolean("flag"), eventId = j.strOrNull("event"),
             archivedAt = if (!j.has("archived") || j.isNull("archived")) null else j.getLong("archived"),
+            parentId = if (j.has("parent")) j.strOrNull("parent") else row.parentId,
         )
     }
 

@@ -90,14 +90,14 @@ import com.familydocs.app.ui.ds.fdText
 import java.io.File
 
 @Composable
-fun AddDocumentScreen(memberId: String, docId: String?, onBack: () -> Unit, onSaved: () -> Unit, eventId: String? = null) {
+fun AddDocumentScreen(memberId: String, docId: String?, onBack: () -> Unit, onSaved: () -> Unit, eventId: String? = null, parentId: String? = null) {
     val app = LocalContainer.current
     val c = Fd.c
     /** The field whose date is being picked on the calendar (its index). */
     var pickingDate by remember { mutableStateOf<Int?>(null) }
     val context = LocalContext.current
     val toast = LocalToast.current
-    val vm = appViewModel(key = "doc-$memberId-$docId-$eventId") { AddDocumentViewModel(it, context.applicationContext, memberId, docId, eventId) }
+    val vm = appViewModel(key = "doc-$memberId-$docId-$eventId-$parentId") { AddDocumentViewModel(it, context.applicationContext, memberId, docId, eventId, parentId) }
     val member by app.repo.member(memberId).collectAsStateWithLifecycle(null)
     val event by (eventId?.let { app.repo.event(it) } ?: kotlinx.coroutines.flow.flowOf(null)).collectAsStateWithLifecycle(null)
     val account by app.repo.account.collectAsStateWithLifecycle(null)
@@ -119,7 +119,7 @@ fun AddDocumentScreen(memberId: String, docId: String?, onBack: () -> Unit, onSa
     fun save() { if (vm.name.isBlank()) toast.show("Give the document a name") else vm.save(onSaved) }
 
     Column(Modifier.fillMaxSize().background(c.bg).statusBarsPadding().imePadding()) {
-        FdTopBar(if (docId == null) "Add document" else "Edit document", onBack) { FdTextButton("Save", ::save, enabled = !vm.saving) }
+        FdTopBar(if (docId != null) "Edit document" else if (parentId != null) "Extend document" else "Add document", onBack) { FdTextButton("Save", ::save, enabled = !vm.saving) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Text(event?.let { "For ${it.name} · only shows in this event" } ?: "For ${member?.name.orEmpty()}", style = fdText(11.5f, color = c.muted), modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
 

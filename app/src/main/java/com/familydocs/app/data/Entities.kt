@@ -142,8 +142,15 @@ data class DocumentEntity(
     val origin: String? = null,
     /** When it was put away (replaced by a renewed one): kept and searchable, but out of the wallet and reminders. Version 11. */
     val archivedAt: Long? = null,
+    /**
+     * Extending a document (a doctor's report and the visits after it): each later report is its own document with the
+     * first one's id here, shown under it rather than in the wallet. Version 12.
+     */
+    val parentId: String? = null,
 ) {
     val archived: Boolean get() = archivedAt != null
+    /** Added later to another document (see [parentId]). */
+    val supplement: Boolean get() = parentId != null
     /** Every file of the document (front, back, more pages…), in order. */
     val attachments: List<Attachment> get() = listOfNotNull(fileId?.let { Attachment(it, fileMime ?: "image/jpeg") }) + Attachment.decode(moreFiles)
     val fields: List<DocField> get() = DocMemo.fields(fieldsJson)

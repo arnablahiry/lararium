@@ -44,7 +44,7 @@ import com.familydocs.app.ui.ds.fdText
 
 /** Everyone's emergency cards in the group shown on Home (yours first), with something filled in. */
 fun emergencyCards(members: List<MemberEntity>, docs: List<DocumentEntity>): List<Pair<MemberEntity, DocumentEntity>> =
-    docs.filter { d -> d.eventId == null && !d.archived && DocTypes.forName(d.name).key == "emergency" && d.fields.any { it.value.isNotBlank() } }
+    docs.filter { d -> d.eventId == null && !d.archived && d.parentId == null && DocTypes.forName(d.name).key == "emergency" && d.fields.any { it.value.isNotBlank() } }
         .mapNotNull { d -> members.firstOrNull { it.id == d.memberId }?.let { it to d } }
         .sortedBy { (m, _) -> if (m.isSelf) 0 else 1 }
 

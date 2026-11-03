@@ -13,7 +13,7 @@ class Converters {
     @TypeConverter fun toMode(s: String): DisplayMode = runCatching { DisplayMode.valueOf(s) }.getOrDefault(DisplayMode.ICON)
 }
 
-@Database(entities = [AccountEntity::class, MemberEntity::class, DocumentEntity::class, PasswordEntity::class, EventEntity::class, GroupEntity::class], version = 11, exportSchema = true)
+@Database(entities = [AccountEntity::class, MemberEntity::class, DocumentEntity::class, PasswordEntity::class, EventEntity::class, GroupEntity::class], version = 12, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): VaultDao

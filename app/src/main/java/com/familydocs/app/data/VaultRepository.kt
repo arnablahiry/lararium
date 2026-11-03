@@ -247,7 +247,7 @@ class VaultRepository(private val dao: VaultDao, val files: FileStore) {
         val key = com.familydocs.app.domain.DocTypes.forName(doc.name).key
         if (doc.eventId != null || key !in com.familydocs.app.domain.DocTypes.RENEWABLE) return@withContext emptyList()
         dao.allDocumentsNow().filter {
-            it.id != doc.id && it.memberId == doc.memberId && it.eventId == null && !it.archived &&
+            it.id != doc.id && it.memberId == doc.memberId && it.eventId == null && !it.archived && it.parentId == null &&
                 com.familydocs.app.domain.DocTypes.forName(it.name).key == key && (it.issuer.isEmpty() || doc.issuer.isEmpty() || it.issuer == doc.issuer)
         }
     }
@@ -258,7 +258,11 @@ class VaultRepository(private val dao: VaultDao, val files: FileStore) {
         onChanged()
     }
 
+    fun supplements(parentId: String) = dao.supplements(parentId)
+
     suspend fun deleteDocument(id: String) = withContext(Dispatchers.IO) {
+        // its later reports go with it
+        dao.supplementsNow(id).forEach { s -> runCatching { deleteDocument(s.id) } }
         dao.documentNow(id)?.let { d -> if (d.origin != null) admin()?.deleteDoc(d, dao.memberNow(d.memberId)) ?: error("Only a group admin can remove this") }
         dao.documentNow(id)?.let { it.attachments.forEach { a -> files.delete(a.id) }; files.delete(it.pictureFile) }
         dao.deleteDocument(id)
